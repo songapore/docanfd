@@ -1,5 +1,5 @@
-#ifndef _NETWORKLAYER_H
-#define _NETWORKLAYER_H
+#ifndef _NETWORKLAYERCANFD_H
+#define _NETWORKLAYERCANFD_H
 
 
 #include "Diagnostic.h"
@@ -10,6 +10,9 @@
 #define MAX_DOWNLOADING_BUF		MAX_DTCDATA_BUF
 
 #define CAN_ID_DIAGNOSIS_FUNCTION 		0x7DF
+
+//Support CAN_FD need more ram
+#define SUPPORT_CAN_FD      1      
 
 void NetworkLayer_InitParam(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID,SendCANFun sendFun);
 void NetworkLayer_SetSecondID(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID);

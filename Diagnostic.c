@@ -1,7 +1,7 @@
 #define _DIAGNOSTIC_C
 #include "Cpu.h"
 #include "DiagnosticTimer.h"
-#include "NetworkLayer.h"
+#include "NetworkLayerCanFD.h"
 #include "diagnostic.h"
 #if USE_J1939_DTC
 #include "J1939TP.h"
@@ -75,7 +75,7 @@ typedef enum{
 	ECU_DEFAULT_SESSION = 1,
 	ECU_PAOGRAM_SESSION = 2,
 	ECU_EXTENED_SESSION = 3,
-	ECU_FACTORY_SESSION = 0x71,//¹©Ó¦ÉÌsession£¬ÓÃÓÚÏÂÏßÅäÖÃ
+	ECU_FACTORY_SESSION = 0x71,//ï¿½ï¿½Ó¦ï¿½ï¿½sessionï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 }SessionType;
 
 typedef enum{
@@ -139,16 +139,16 @@ typedef struct _J1939DTC{
 
 typedef struct _DtcNode{
 	uint32_t DTCCode;
-	DetectFun DetectFunction;//¹ÊÕÏ¼ì²âº¯Êý
+	DetectFun DetectFunction;//ï¿½ï¿½ï¿½Ï¼ï¿½âº¯ï¿½ï¿½
 	uint16_t EEpromAddr;
 	uint8_t TripLimitTimes;
 	DTCStatusType DTCStatus;
 	uint8_t OldCounter;
 	uint8_t GoneCounter;
-	uint8_t TripCounter;//¹ÊÕÏ´ý¶¨¼ÆÊýÆ÷
-	uint8_t FaultOccurrences;//¹ÊÕÏ³öÏÖ´ÎÊý
-	uint16_t SnapShotEEpromAddr;//¿ìÕÕÐÅÏ¢µØÖ·
-	//uint16_t ExtenedDataEEpromAddr;//À©Õ¹Êý¾ÝµØÖ·
+	uint8_t TripCounter;//ï¿½ï¿½ï¿½Ï´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+	uint8_t FaultOccurrences;//ï¿½ï¿½ï¿½Ï³ï¿½ï¿½Ö´ï¿½ï¿½ï¿½
+	uint16_t SnapShotEEpromAddr;//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï¢ï¿½ï¿½Ö·
+	//uint16_t ExtenedDataEEpromAddr;//ï¿½ï¿½Õ¹ï¿½ï¿½ï¿½Ýµï¿½Ö·
 	#if USE_J1939_DTC
 	DTCLevel dtcLevel;
 	J1939DTC DM1Code;
@@ -207,7 +207,7 @@ typedef struct{
 	uint8_t FaultLimitCounter;
 	uint32_t UnlockFailedDelayTime;
 	uint8_t subFunctionSupported;
-	DiagTimer SecurityLockTimer;						//½âËøÊ§°Ü3´ÎºóÔÙ´Î½âËøÑÓÊ±¶¨Ê±Æ÷
+	DiagTimer SecurityLockTimer;						//ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½3ï¿½Îºï¿½ï¿½Ù´Î½ï¿½ï¿½ï¿½ï¿½ï¿½Ê±ï¿½ï¿½Ê±ï¿½ï¿½
 	uint8_t KeySize;
 }SecurityUnlock;
 
@@ -259,26 +259,26 @@ const char DatabaseVersion[] = {0,0};
 
 
 /*========================about security acces================================*/
-static uint8_t Seed[5];										//±£´æ½âËøÖÖ×Ó
-static uint8_t key[4];										//±£´æ½âËøÃÜ³×
+static uint8_t Seed[5];										//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+static uint8_t key[4];										//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ü³ï¿½
 static uint32_t retLen;
-static SecurityLevel m_SecurityLevel = LEVEL_ZERO;			//µ±Ç°½âËøµÈ¼¶
-static SecurityUnlockStep m_UnlockStep = WAIT_SEED_REQ;	//µ±Ç°½âËø²½Öè
+static SecurityLevel m_SecurityLevel = LEVEL_ZERO;			//ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½È¼ï¿½
+static SecurityUnlockStep m_UnlockStep = WAIT_SEED_REQ;	//ï¿½ï¿½Ç°ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
 SecurityUnlock UnlockList[3];
 /*========================about security acces================================*/
 
 /*========================sesion , id , buf and so on================================*/
-static NegativeResposeCode m_NRC;					//·ñ¶¨ÏìÓ¦Âë
-uint8_t m_CurrSessionType;							//µ±Ç°»Ø»°ÀàÐÍ
-bool ResponsePending;									//ÊÇ·ñ·¢ËÍ¹ý78¸ºÏìÓ¦
+static NegativeResposeCode m_NRC;					//ï¿½ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½
+uint8_t m_CurrSessionType;							//ï¿½ï¿½Ç°ï¿½Ø»ï¿½ï¿½ï¿½ï¿½ï¿½
+bool ResponsePending;									//ï¿½Ç·ï¿½ï¿½Í¹ï¿½78ï¿½ï¿½ï¿½ï¿½Ó¦
 bool suppressResponse;
 uint16_t ResponseLength;
 uint8_t CurrentService;
-static uint8_t DiagnosticBuffTX[200];							//·¢ËÍÊý¾ÝµÄ»º´æ
+static uint8_t DiagnosticBuffTX[200];							//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ÝµÄ»ï¿½ï¿½ï¿½
 static uint8_t J1939BufTX[90];
-static DiagTimer S3serverTimer;							 //S3¶¨Ê±Æ÷
-static uint16_t P2CanServerMax = 0x32;						//»Ø»°²ÎÊý
-static uint16_t P2ECanServerMax = 0x1F4;					//»Ø»°²ÎÊý
+static DiagTimer S3serverTimer;							 //S3ï¿½ï¿½Ê±ï¿½ï¿½
+static uint16_t P2CanServerMax = 0x32;						//ï¿½Ø»ï¿½ï¿½ï¿½ï¿½ï¿½
+static uint16_t P2ECanServerMax = 0x1F4;					//ï¿½Ø»ï¿½ï¿½ï¿½ï¿½ï¿½
 static uint32_t TesterPhyID;
 static uint32_t TesterFunID;
 static uint32_t TesterPhyID1;
@@ -308,7 +308,7 @@ static uint32_t ProgramLength = 0;
 static uint32_t ProgramLengthComplete = 0;
 static bool IsUpdating = FALSE;
 static bool WaitConfirmBeforeJump = FALSE;				//
-static bool WaitConfirmBeforeErase = FALSE;				//²Á³ýÇ°µÈ´ý78¸º·´À¡µÄÈ·ÈÏÐÅÏ¢
+static bool WaitConfirmBeforeErase = FALSE;				//ï¿½ï¿½ï¿½ï¿½Ç°ï¿½È´ï¿½78ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½È·ï¿½ï¿½ï¿½ï¿½Ï¢
 /*========================about program================================*/
 
 /*========================about DTC and DIDs================================*/	
@@ -342,9 +342,9 @@ static uint16_t ModuleEEpromStartAddr;
 static uint16_t EEpromSizeForUse;
 static uint16_t EEpromUsed;
 #define DTC_BYTE_NUMBER_TO_SAVE	5
-bool EnableDTCDetect;						//Ê¹ÄÜ¹ÊÕÏÂë¼ì²â
-bool HighVoltage;								//¹ýµçÑ¹±êÖ¾
-bool LowVoltage;								//Ç·µçÑ¹±êÖ¾
+bool EnableDTCDetect;						//Ê¹ï¿½Ü¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½
+bool HighVoltage;								//ï¿½ï¿½ï¿½ï¿½Ñ¹ï¿½ï¿½Ö¾
+bool LowVoltage;								//Ç·ï¿½ï¿½Ñ¹ï¿½ï¿½Ö¾
 bool SaveDTCInBlock;
 static uint8_t DTCSaved;
 static uint8_t DM1DTCNumber;					//J1939 DTC number
@@ -366,7 +366,7 @@ static uint8_t ResetTypeSupport;//bit0: 01 sub function supported
 #define Service11Sub04Supported()  ((ResetTypeSupport & 0x08) != 0)
 #define Service11Sub05Supported()  ((ResetTypeSupport & 0x10) != 0)
 static ResetCallBack ResetCallBackFun;
-static EcuResetType m_EcuResetType;						//ECU¸´Î»ÀàÐÍ
+static EcuResetType m_EcuResetType;						//ECUï¿½ï¿½Î»ï¿½ï¿½ï¿½ï¿½
 static bool WaitConfimBeforeReset = FALSE;
 /*========================about reset===============================*/
 
@@ -749,7 +749,7 @@ void Diagnostic_SetNLParam(uint8_t TimeAs, uint8_t TimeBs, uint8_t TimeCr, uint8
 {
 	NetworkLayer_SetParam(TimeAs , TimeBs , TimeCr , TimeAr , TimeBr , TimeCs , BlockSize , m_STmin , HALF_DUPLEX , DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , FillData);
 }
-/*µÚ¶þÕï¶ÏidÉèÖÃ*/
+/*ï¿½Ú¶ï¿½ï¿½ï¿½ï¿½idï¿½ï¿½ï¿½ï¿½*/
 void Diagnostic_Set2ndReqAndResID(uint32_t requestId1, uint32_t responseId1,uint32_t funRequestId1)
 {
 	TesterPhyID1 = requestId1;
@@ -764,9 +764,9 @@ void Diagnostic_Init(uint32_t requestId, uint32_t responseId, uint32_t funReques
 	EcuID = responseId;
 	TesterFunID = funRequestId;
 	
-	N_Ta = (uint8_t)EcuID; // Ó¦´ðid¶ÔÓ¦ÍøÂç²ãÄ¿±êµØÖ·¡£
+	N_Ta = (uint8_t)EcuID; // Ó¦ï¿½ï¿½idï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½ï¿½Ä¿ï¿½ï¿½ï¿½Ö·ï¿½ï¿½
 	N_Sa = (uint8_t)(EcuID >> 8); //?
-	NetworkLayer_InitParam(TesterPhyID, TesterFunID , EcuID , sendFun); //sendFunÊ¹ÓÃÓò¿ØÖÆÆ÷  ¶¨ÒåµÄ½Ó¿Ú¡£
+	NetworkLayer_InitParam(TesterPhyID, TesterFunID , EcuID , sendFun); //sendFunÊ¹ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½  ï¿½ï¿½ï¿½ï¿½Ä½Ó¿Ú¡ï¿½
 	TPCMSetParamBAM(sendFun); //transport communication param
 
 	P2CanServerMax = p2CanServerMax;
@@ -777,7 +777,7 @@ void Diagnostic_Init(uint32_t requestId, uint32_t responseId, uint32_t funReques
 	DM1DTCNumber = 0;
 	HighVoltage = FALSE;
 	ResponsePending = FALSE;
-	m_CurrSessionType = ECU_DEFAULT_SESSION; //ÉÏµçÄ¬ÈÏdefault_session
+	m_CurrSessionType = ECU_DEFAULT_SESSION; //ï¿½Ïµï¿½Ä¬ï¿½ï¿½default_session
 	
 	WaitConfirmBeforeJump = FALSE;
 	WaitConfimBeforeReset = FALSE;
@@ -821,7 +821,7 @@ void GenerateSeed(uint8_t *seed, uint32_t length)
 	seed[3] = (uint8_t)(SystemTick>>3) ^ (uint8_t)(SystemTick >> 11);
 	#endif
 }
-/*»á»°Ìø×ª*/
+/*ï¿½á»°ï¿½ï¿½×ª*/
 void GotoSession(SessionType session)
 {
 	if(session != ECU_DEFAULT_SESSION)
@@ -844,7 +844,7 @@ void GotoSession(SessionType session)
 	m_SecurityLevel = LEVEL_ZERO;//session change ECU lock even if from extended session to extended session
 	if(m_UnlockStep != WAIT_DELAY)
 	{
-		m_UnlockStep = WAIT_SEED_REQ;//by ukign 2016.04.01 µÈ´ýÑÓÊ±×´Ì¬ÊÕµ½»á»°Ìø×ª£¬ÔòÖØÖÃ½âËø²½Öè×´Ì¬
+		m_UnlockStep = WAIT_SEED_REQ;//by ukign 2016.04.01 ï¿½È´ï¿½ï¿½ï¿½Ê±×´Ì¬ï¿½Õµï¿½ï¿½á»°ï¿½ï¿½×ªï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ã½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½×´Ì¬
 	}
 		/***********TODO:Add secrity brefore 10 02 ***********/
 	if(m_CurrSessionType == ECU_PAOGRAM_SESSION)
@@ -1044,11 +1044,11 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 
 	if(m_NRC == PR)
 	{
-		if(suppressResponse == FALSE)//ÐèÒªÕýÏìÓ¦Ê±£¬µÈ¼¶ÏìÓ¦½áÊø
+		if(suppressResponse == FALSE)//ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½Ó¦Ê±ï¿½ï¿½ï¿½È¼ï¿½ï¿½ï¿½Ó¦ï¿½ï¿½ï¿½ï¿½
 		{
 			WaitConfimBeforeReset = TRUE;
 		}
-		else//²»ÐèÒªÕýÏìÓ¦Ê±Ö±½Ó¸´Î»
+		else//ï¿½ï¿½ï¿½ï¿½Òªï¿½ï¿½ï¿½ï¿½Ó¦Ê±Ö±ï¿½Ó¸ï¿½Î»
 		{
 			if(ResetCallBackFun != NULL)
 			{
@@ -2478,7 +2478,7 @@ void DTC_Handler(void* DTCCodePtr)
 	
 	if(DTC->DetectFunction() == TRUE)
 	{
-		if(DTC->DetectCounter < 0)//¹Ø¼üµãb
+		if(DTC->DetectCounter < 0)//ï¿½Ø¼ï¿½ï¿½ï¿½b
 		{
 			DTC->DetectCounter = 2;
 		}
@@ -2487,7 +2487,7 @@ void DTC_Handler(void* DTCCodePtr)
 			DTC->DetectCounter += 2;
 		}
 		
-		if(DTC->DetectCounter >= DTC->DetectValidTimes)//¹Ø¼üµãc
+		if(DTC->DetectCounter >= DTC->DetectValidTimes)//ï¿½Ø¼ï¿½ï¿½ï¿½c
 		{
 			if(DTC->DTCStatus.DTCbit.TestFailed != 1 || DTC->DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0)
 			{
@@ -2497,11 +2497,11 @@ void DTC_Handler(void* DTCCodePtr)
 				}
 				DTC->OldCounter = 0;
 				
-				DTC->DTCStatus.DTCbit.TestFailed = 1;//²âÊÔÊ§°Ü
-				DTC->DTCStatus.DTCbit.ConfirmedDTC = 1;//ÒÑÈ·ÈÏµÄÕï¶Ï¹ÊÕÏ£¬¹Ø¼üµãe
-				DTC->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//±¾´Î²Ù×÷Ñ­»·²âÊÔÊ§°Ü
-				//DTC->DTCStatus.DTCbit.PendingDTC = 1;//Î´È·ÈÏµÄÕï¶Ï¹ÊÕÏÂë£¬¹Ø¼üµãd
-				//DTC->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//×ÔÉÏ´ÎÇå³ýºó²âÊÔÊ§°Ü
+				DTC->DTCStatus.DTCbit.TestFailed = 1;//ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½
+				DTC->DTCStatus.DTCbit.ConfirmedDTC = 1;//ï¿½ï¿½È·ï¿½Ïµï¿½ï¿½ï¿½Ï¹ï¿½ï¿½Ï£ï¿½ï¿½Ø¼ï¿½ï¿½ï¿½e
+				DTC->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//ï¿½ï¿½ï¿½Î²ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½
+				//DTC->DTCStatus.DTCbit.PendingDTC = 1;//Î´È·ï¿½Ïµï¿½ï¿½ï¿½Ï¹ï¿½ï¿½ï¿½ï¿½ë£¬ï¿½Ø¼ï¿½ï¿½ï¿½d
+				//DTC->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//ï¿½ï¿½ï¿½Ï´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½
 				//Printf("faild %x %x %x\r\n",DTC->DTCHightByte,DTC->DTCMiddleByte,DTC->DTCLowByte);
 			}
 		}
@@ -2771,7 +2771,7 @@ void Diagnostic_ServiceHandle(uint8_t N_SA , uint8_t N_TA , uint8_t N_TAtype , u
 	}
 	else
 	{
-		if(N_TAtype == PHYSICAL)//¹¦ÄÜÑ°Ö·ÎÞÐ§SED²»ÏìÓ¦
+		if(N_TAtype == PHYSICAL)//ï¿½ï¿½ï¿½ï¿½Ñ°Ö·ï¿½ï¿½Ð§SEDï¿½ï¿½ï¿½ï¿½Ó¦
 		{
 			m_NRC = SNS;//ServiceNegReponse(ServiceName,SNS);
 			suppressResponse = FALSE;
@@ -3065,7 +3065,7 @@ void DtcHandle(DTCNode* DtcNode)
 		}
 		if(DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle ==0 )
 		{
-			DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//±¾´Î²Ù×÷Ñ­»·²âÊÔÊ§°Ü14229-1-Figure D.9-4
+			DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//ï¿½ï¿½ï¿½Î²ï¿½ï¿½ï¿½Ñ­ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½14229-1-Figure D.9-4
 			DtcNode->TripCounter++;
 			//DtcNode->DTCStatus.DTCbit.ConfirmedDTC = 1;
 			//SaveSnapShotData(DtcNode->SnapShotEEpromAddr);
@@ -3085,8 +3085,8 @@ void DtcHandle(DTCNode* DtcNode)
 			}
 			#endif
 		}
-		DtcNode->DTCStatus.DTCbit.PendingDTC = 1;//Î´È·ÈÏµÄÕï¶Ï¹ÊÕÏÂë£¬14229-1-Figure D.9-5
-		DtcNode->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//×ÔÉÏ´ÎÇå³ýºó²âÊÔÊ§°Ü14229-1-Figure D.9-6	
+		DtcNode->DTCStatus.DTCbit.PendingDTC = 1;//Î´È·ï¿½Ïµï¿½ï¿½ï¿½Ï¹ï¿½ï¿½ï¿½ï¿½ë£¬14229-1-Figure D.9-5
+		DtcNode->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//ï¿½ï¿½ï¿½Ï´ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ê§ï¿½ï¿½14229-1-Figure D.9-6	
 		DtcNode->OldCounter == 0;
 
 		#if USE_J1939_DTC
@@ -3228,7 +3228,7 @@ void Diagnostic_SaveAllDTC(void)
 	{
 		if(DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0  && DtcNode->DTCStatus.DTCbit.ConfirmedDTC == 1)
 		{
-			if(DtcNode->OldCounter >= 100)//¹ÊÕÏÂëÀÏ»¯»úÖÆ
+			if(DtcNode->OldCounter >= 100)//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï»ï¿½ï¿½ï¿½ï¿½ï¿½
 			{
 				DtcNode->OldCounter = 0;
 				DtcNode->GoneCounter++;
@@ -3265,7 +3265,7 @@ void Diagnostic_SaveAllDTC(void)
 	
 		if(DTCS[i].DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0  && DTCS[i].DTCStatus.DTCbit.ConfirmedDTC == 1)
 		{
-			if(DTCS[i].OldCounter >= 40)//¹ÊÕÏÂëÀÏ»¯»úÖÆ
+			if(DTCS[i].OldCounter >= 40)//ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ï»ï¿½ï¿½ï¿½ï¿½ï¿½
 			{
 				DTCS[i].OldCounter = 0;
 				DTCS[i].GoneCounter++;

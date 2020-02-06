@@ -173,9 +173,16 @@ typedef struct{
 	uint8_t CompletedNumberInBlock;
 	uint8_t STmin;
 	uint8_t SN;
-	uint16_t TotalDataNumber;
+#ifdef SUPPORT_CAN_FD
+	uint32_t TotalDataNumber; /* CANFD*/
+	uint32_t CompletedDataNumber;
+	uint32_t BuffSize; // uint16,i.e. 64kB
+#else
+	uint16_t TotalDataNumber; /* CAN*/
 	uint16_t CompletedDataNumber;
-	uint16_t BuffSize;
+	uint16_t BuffSize; // uint16,i.e. 64kB
+#endif	
+
 }CommuParam;
 
 typedef enum{
@@ -192,7 +199,12 @@ typedef struct{
 	N_TAtype N_TAtype;
 	uint8_t N_AE;
 	uint8_t *MessageData;
-	uint16_t length;
+#ifdef SUPPORT_CAN_FD
+	uint32_t length; /* CANFD*/
+#else
+	uint16_t length; /* CAN*/
+#endif
+
 	N_Result N_Resut;
 	bool valid;
 }NetworkNotification;

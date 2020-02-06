@@ -1,23 +1,23 @@
-#define _NETWORKLAYER_C
+#define _NETWORKLAYERCANFD_C
 #include "DiagnosticTimer.h"
-#include "NetworkLayer.h"
+#include "NetworkLayerCanFD.h"
 
 #include<stdlib.h>/*only for test  */
 #include<stdio.h>/*only for test  */
 
-NetworkNotification IndicationList[MAX_INDICATION_NUMBER];
+NetworkNotification IndicationList[MAX_INDICATION_NUMBER]; //网络层 buffer
 uint8_t IndicationInIndex;
 uint8_t IndicationOutIndex;
-NetworkFrame RxFrameBuff[MAX_BUFF_NUMBER];// = {0};
+NetworkFrame RxFrameBuff[MAX_BUFF_NUMBER];// = {0}; // 数据链路层 接收 frame buff
 uint8_t RxInIndex;
 uint8_t RxOutIndex;
-NetworkFrame TxFrameBuff[MAX_BUFF_NUMBER];// = {0};
+NetworkFrame TxFrameBuff[MAX_BUFF_NUMBER];// = {0}; // 数据链路层 发送 frame buff
 uint8_t TxInIndex;
 uint8_t TxOutIndex;
 
 static N_Result m_N_Result;
 static NWL_Status m_NetworkStatus = NWL_IDLE;
-static DuplexMode m_DuplexMode; /* not for BYD */
+static DuplexMode m_DuplexMode; 
 static TimePeriodParam m_TimePeriod; 
 static TransmissionStep m_TxStep;
 static RecivingStep m_RxStep;
@@ -26,7 +26,7 @@ static uint8_t* CFDataPionter;
 static CommuParam TxParam; /*for dynamic param */
 static CommuParam RxParam;/*for dynamic param */
 static uint8_t NetworkDataBufRx[MAX_DTCDATA_BUF]; 
-uint8_t FrameFillData;/*for BYD,request:0x55,response:0xAA */
+uint8_t FrameFillData; /*request:0x55,response:0xAA */
 static uint32_t m_PyhReqID;
 static uint32_t m_FunReqID;
 static uint32_t m_ResponseID;
@@ -37,7 +37,15 @@ static uint32_t m_ResponseID1;
 static uint32_t m_CurrResponseID;
 #endif
 
-static uint8_t RxDataBuff[7];
+
+#ifdef SUPPORT_CAN_FD
+	static uint8_t RxDataBuff[64]; /* CANFD*/
+
+#else
+	static uint8_t RxDataBuff[7]; /* CAN*/
+#endif
+
+
 
 /************private function prototype*********/
 void NetworkLayer_SendSF(uint8_t length, uint8_t *data);
@@ -496,7 +504,7 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame)
 				RxDataBuff[6] = RxFrame.CanData.data7;
 				N_USData_indication(SF ,  RxFrame.CanData.Mtype , RxFrame.CanData.N_SA , RxFrame.CanData.N_TA , RxFrame.CanData.N_TAtype , RxFrame.CanData.N_AE , RxDataBuff, RxFrame.N_PDU.SF_DL ,  m_N_Result);
 			}
-			else if(m_DuplexMode == HALF_DUPLEX)//BYD CAN BUS use half duplex
+			else if(m_DuplexMode == HALF_DUPLEX)// use half duplex
 			{
 				if(m_NetworkStatus == NWL_RECIVING)/*m_NetworkStatus = NWL_IDLE,NWL_TRANSMITTING,NWL_RECIVING,NWL_WAIT, */
 				{
@@ -602,7 +610,7 @@ void NetworkLayer_RxFF(NetworkFrame RxFrame)
 						N_USData_indication(FF , RxFrame.N_PDU.Mtype , RxFrame.N_PDU.N_SA , RxFrame.N_PDU.N_TA , RxFrame.N_PDU.N_TAtype , RxFrame.N_PDU.N_AE , RxDataBuff , FF_DL ,  m_N_Result);
 					}
 				}
-				else if(m_DuplexMode == HALF_DUPLEX)//byd can bus use half duplex
+				else if(m_DuplexMode == HALF_DUPLEX)// use half duplex
 				{
 					if(m_NetworkStatus == NWL_IDLE)/*m_NetworkStatus = NWL_IDLE,NWL_TRANSMITTING,NWL_RECIVING,NWL_WAIT, */
 					{
