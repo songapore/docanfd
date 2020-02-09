@@ -12,6 +12,8 @@
 #ifndef __NMLAYER_TYPE_DEFINESCANFD_H
 #define __NMLAYER_TYPE_DEFINESCANFD_H
 
+#define SUPPORT_CAN_FD      1 //song
+
 #ifdef __cplusplus
  extern "C" {
 #endif 

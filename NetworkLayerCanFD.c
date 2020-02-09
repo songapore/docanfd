@@ -1,6 +1,7 @@
 #define _NETWORKLAYERCANFD_C
 #include "DiagnosticTimer.h"
 #include "NetworkLayerCanFD.h"
+#include "NetworkLayerTypeDefines.h" //song
 
 #include<stdlib.h>/*only for test  */
 #include<stdio.h>/*only for test  */
@@ -74,6 +75,11 @@ bool IsTxBuffEmpty(void);
 bool IsTxBuffFull(void);
 bool IsIndicationListFull(void);
 /************private function prototype*********/
+static inline uint8_t dlc2len(uint8_t dlc)
+{
+	static const uint8_t dlc_len_table[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 12, 16, 20, 24, 32, 48, 64 };
+	return dlc_len_table[dlc & 0xf];
+}
 
 /***********time peroid timer define************/
 static DiagTimer SendTimer; /* N_AS,N_BS,N_CS*/
@@ -250,10 +256,52 @@ void NetworkLayer_AddToTxBuff(NetworkFrame* txFrame)
   * @param 	data
   * @retval None.
   */
+#ifdef SUPPORT_CAN_FD
+void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
+{
+	uint8_t i;
+	uint8_t SF_max_len = 7;
+	if(leng > 7)
+	{
+		SF_max_len = dlc2len(TxFrameBuff[TxInIndex].CanData.DLC) - 2;
+	}
+	if(length  <= SF_max_len)//SF length must <= 63
+	{
+		if(!IsTxBuffFull())
+		{
+			/*发送buff未满*/
+			/*
+
+			*/
+
+			for(i = 0; i < 7; i++)
+			{
+				if(i >= length)
+				{
+					*(&TxFrameBuff[TxInIndex].CanData.data7 + (6-i)) = FrameFillData;/*不满7字节使用填充*/
+				}
+				else
+				{
+					*(&TxFrameBuff[TxInIndex].CanData.data7 + (6-i)) = *(data + i);/*将data赋值给 发送buff */
+				}
+			}
+			TxFrameBuff[TxInIndex].N_PDU.N_PciType = SF;/* byte0 高4位置0 */
+			TxFrameBuff[TxInIndex].N_PDU.SF_DL = length;/* byte0 低4位 SF_DL = length */
+			(TxInIndex >= MAX_BUFF_NUMBER - 1) ? (TxInIndex = 0) : (TxInIndex++);/*index:0->1->2->0. 初始状态TxInIndex=0；每发送一帧TxInIndex加1；当TxInIndex=2时，再发送会重置为0 */
+		}
+		else
+		{
+			/*发送buff已满，do nothing*/
+			//printf("send SF but tx buf full\r\n");
+		}
+	}
+	
+}
+#else
 void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
 {
 	#if 0
-	NetworkFrame tempFrame;
+ 	NetworkFrame tempFrame;
 	uint8_t i;
 	
 	if(length  <= 7)//SF length must <= 7
@@ -273,7 +321,7 @@ void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
 		tempFrame.N_PDU.SF_DL = length;
 
 		NetworkLayer_AddToTxBuff(&tempFrame);	
-	}
+	} */
 	#else
 	uint8_t i;
 	
@@ -305,6 +353,7 @@ void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
 	}
 	#endif
 }
+#endif
 
 /**
   * @brief  网络层-发送首帧，在NetworkLayer_TxProc()中调用 
