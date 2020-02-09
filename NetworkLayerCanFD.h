@@ -12,7 +12,8 @@
 #define CAN_ID_DIAGNOSIS_FUNCTION 		0x7DF
 
 //Support CAN_FD need more ram
-#define SUPPORT_CAN_FD      1      
+#define SUPPORT_CAN_FD          
+#define MAX_BUFF_LEN 70000 /* canfd single frame max length */
 
 void NetworkLayer_InitParam(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID,SendCANFun sendFun);
 void NetworkLayer_SetSecondID(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID);

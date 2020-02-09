@@ -250,6 +250,8 @@ void NetworkLayer_AddToTxBuff(NetworkFrame* txFrame)
 }
 #endif
 
+
+
 /**
   * @brief  网络层-发送单帧，在NetworkLayer_TxProc()中调用 
   * @param  length
@@ -261,32 +263,48 @@ void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
 {
 	uint8_t i;
 	uint8_t SF_max_len = 7;
-	if(leng > 7)
+	if(length > 7 && length < 62) //data为待发送payload,length为有效数据长度
 	{
-		SF_max_len = dlc2len(TxFrameBuff[TxInIndex].CanData.DLC) - 2;
+		SF_max_len = dlc2len(TxFrameBuff[TxInIndex].CanData.DLC) - 2;/*去掉canfd单帧前2个字节*/
 	}
-	if(length  <= SF_max_len)//SF length must <= 63
+	if(length  <= SF_max_len)//SF length must <= 62
 	{
 		if(!IsTxBuffFull())
 		{
 			/*发送buff未满*/
-			/*
-
-			*/
-
-			for(i = 0; i < 7; i++)
+			
+			if (length <=7)
 			{
-				if(i >= length)
+				/* classical format single frame */
+				for ( i = 0; i < length; i++)
 				{
-					*(&TxFrameBuff[TxInIndex].CanData.data7 + (6-i)) = FrameFillData;/*不满7字节使用填充*/
+					*(&TxFrameBuff[TxInIndex].CanData.data[1 + i] = *(data + i);
 				}
-				else
+				for ( ; i < SF_max_len; i++) //此处SF_max_len = 7
 				{
-					*(&TxFrameBuff[TxInIndex].CanData.data7 + (6-i)) = *(data + i);/*将data赋值给 发送buff */
+					*(&TxFrameBuff[TxInIndex].CanData.data[1 + i] = FrameFillData;/*剩余字节使用填充*/
 				}
+				
+				TxFrameBuff[TxInIndex].N_PDU.N_PciType = SF;/* byte0 高4位置0 */
+				TxFrameBuff[TxInIndex].N_PDU.SF_DL = length;/* byte0 低4位 SF_DL = length */	
 			}
-			TxFrameBuff[TxInIndex].N_PDU.N_PciType = SF;/* byte0 高4位置0 */
-			TxFrameBuff[TxInIndex].N_PDU.SF_DL = length;/* byte0 低4位 SF_DL = length */
+			else
+			{
+				/* canfd format single frame */
+				for ( i = 0; i < length; i++)
+				{
+					*(&TxFrameBuff[TxInIndex].CanData.data[2 + i] = *(data + i);
+				}
+				for ( ; i < SF_max_len; i++) //此处SF_max_len = 7
+				{
+					*(&TxFrameBuff[TxInIndex].CanData.data[2 + i] = FrameFillData;/*剩余字节使用填充*/
+				}
+				
+				TxFrameBuff[TxInIndex].CanData.data[0] = SF;/* canfd single frame :byte0 置0 */
+				TxFrameBuff[TxInIndex].CanData.data[1] = length;/* canfd: data1 = sf_dl */
+
+			}
+
 			(TxInIndex >= MAX_BUFF_NUMBER - 1) ? (TxInIndex = 0) : (TxInIndex++);/*index:0->1->2->0. 初始状态TxInIndex=0；每发送一帧TxInIndex加1；当TxInIndex=2时，再发送会重置为0 */
 		}
 		else
@@ -355,12 +373,62 @@ void NetworkLayer_SendSF(uint8_t length, uint8_t *data)
 }
 #endif
 
+
+
+
+
 /**
   * @brief  网络层-发送首帧，在NetworkLayer_TxProc()中调用 
   * @param  length
   * @param 	data
   * @retval None.
   */
+#ifdef SUPPORT_CAN_FD
+void NetworkLayer_SendFF(uint32_t length, uint8_t *data)
+{
+	if(length > 62 && length <= 4095) //  62<lenth<4095,使用classical format FF
+	{
+		/*for PCI */
+		TxFrameBuff[TxInIndex].N_PDU.N_PciType = FF;/*byte0 高4位：pci = 1 */
+		TxFrameBuff[TxInIndex].N_PDU.SF_DL = length >> 8;	//byte0 低4位： length high 4 bits
+		TxFrameBuff[TxInIndex].N_PDU.FF_DL_LOW = length & 0xFF;	//byte1: length low nibble
+		
+		/*for payload data*/
+		for ( i = 2; i <= 64; i++) //64-2
+		{
+			TxFrameBuff[TxInIndex].CanData.data[i] = *(data + (i -2));
+		}
+		
+		TxParam.CompletedDataNumber = 62; /*FF contains 64-2 bytes payload data */
+		CFDataPionter = data + 62; /*数据指针移位*/
+	}
+	else if(length >4095 && length <= MAX_BUFF_LEN )// 4095<lenth< max_buff_len ,使用canfd format FF
+	{
+		/*for PCI */
+		TxFrameBuff[TxInIndex].CanData.data[0] = 0x10; //byte0 = 0x10
+		TxFrameBuff[TxInIndex].CanData.data[1] = 0; //byte1 = 0
+		TxFrameBuff[TxInIndex].CanData.data[2]= (uint8_t)(length >> 24）; //byte2 ,length 4字节，右移3字节位，
+		TxFrameBuff[TxInIndex].CanData.data[3] = (uint8_t)(length >> 16); // 右移2字节，再取低字节
+		TxFrameBuff[TxInIndex].CanData.data[4]= (uint8_t)(length >> 8); //右移1字节，再取低字节
+		TxFrameBuff[TxInIndex].CanData.data[5] = (uint8_t)(length & 0xFF)； //取length 低字节
+		
+		/*for payload data*/
+		for ( i = 6; i <= 64; i++) //64-6
+		{
+			TxFrameBuff[TxInIndex].CanData.data[i] = *(data + (i -6));
+		}
+		
+		TxParam.CompletedDataNumber = 58; /*FF contains 64-6 bytes payload data */
+		CFDataPionter = data + 58; /*数据指针移位*/
+	}
+		
+	TxParam.SN = 0;/*FF SN = 0*/
+	TxParam.TotalDataNumber = length; /*payload data length */
+
+	(TxInIndex >= MAX_BUFF_NUMBER - 1) ? (TxInIndex = 0) : (TxInIndex++); /*发送buff index处理*/
+ 
+} 
+#else
 void NetworkLayer_SendFF(uint16_t length, uint8_t *data)
 {
 	#if 0
@@ -408,11 +476,54 @@ void NetworkLayer_SendFF(uint16_t length, uint8_t *data)
 	}
 	#endif
 }
+#endif
+
+
+
 
 /**
   * @brief  网络层-发送连续帧，在NetworkLayer_TxProc()中调用 
   * @retval None.
   */
+#ifdef SUPPORT_CAN_FD
+void NetworkLayer_SendCF(void)
+{	
+	uint8_t i;
+	uint8_t length;
+	/* 1、确定该连续帧长度 */
+	if(TxParam.CompletedDataNumber + 63 <= TxParam.TotalDataNumber)
+	{
+		length = 63;	/*not the last CF */
+	}
+	else
+	{
+		length = TxParam.TotalDataNumber - TxParam.CompletedDataNumber;	/*the last CF */				
+	}	
+	
+	/* 2、pci 赋值 */
+	TxFrameBuff[TxInIndex].N_PDU.N_PciType = CF;/*byte0 高4位：pci =2 */
+	TxFrameBuff[TxInIndex].N_PDU.SF_DL = ++TxParam.SN;	/*byte0 低4位 = SN	*/
+	
+	/*3、将payload赋值给 发送buff */
+	for(i = 0; i < 63; i++)
+	{
+		if(i < length)
+		{
+			*(&(TxFrameBuff[TxInIndex].CanData.data[i]) + 1) = *(CFDataPionter + i);
+		}
+		else
+		{
+			*(&(TxFrameBuff[TxInIndex].CanData.data[i]) + 1) = FrameFillData; /*不足字节使用填充*/
+		}
+	}
+
+	/* 4、后处理 */
+	TxParam.CompletedDataNumber += length;/*增加已完成低有效数据字节数 */
+	CFDataPionter += length;/*数据指针移位*/
+	(TxInIndex >= MAX_BUFF_NUMBER - 1) ? (TxInIndex = 0) : (TxInIndex++);/*发送index处理*/
+	
+}
+#else
 void NetworkLayer_SendCF(void)
 {
 	#if 0
@@ -482,12 +593,15 @@ void NetworkLayer_SendCF(void)
 	(TxInIndex >= MAX_BUFF_NUMBER - 1) ? (TxInIndex = 0) : (TxInIndex++);/*发送index处理*/
 	#endif
 }
+#endif
+
+
 
 /**
   * @brief  网络层-发送流控帧，在NetworkLayer_TxProc()中调用 
   * @retval None.
   */
-void NetworkLayer_SendFC(void)
+void NetworkLayer_SendFC(void) //can 与canfd流控帧完全一致
 {
 	#if 0
 	NetworkFrame tempFrame;

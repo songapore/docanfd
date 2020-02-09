@@ -12,6 +12,8 @@
 #ifndef __NMLAYER_TYPE_DEFINESCANFD_H
 #define __NMLAYER_TYPE_DEFINESCANFD_H
 
+
+#include "NetworkLayerCanFD.h"
 #define SUPPORT_CAN_FD      1 //song
 
 #ifdef __cplusplus
@@ -124,6 +126,8 @@ typedef struct{
 	uint8_t N_AE;
 }AddressFormat;
 
+#ifdef SUPPORT_CAN_FD
+
 typedef union{
 	struct{
 		MType Mtype;
@@ -135,14 +139,84 @@ typedef union{
 		uint8_t DLC;
 		uint8_t RTR;
 		uint8_t IDE;
-		bool valid;		
+		bool valid;	
+		N_PCIType N_PciType:4; //data[0] high 4bits
+		uint8_t SF_DL:4;	//data[0] low 4bits
+		uint8_t FF_DL_LOW;	//data[1]
+		uint8_t STmin;//data[2]
+		uint8_t data3;
+		uint8_t data4;
+		uint8_t data5;
+		uint8_t data6;
+		uint8_t data7;
+		uint8_t data8_63[56];
+	}N_PDU;
+	
+	struct{
+		MType Mtype;
+		N_TAtype N_TAtype;
+		uint8_t N_SA;
+		uint8_t N_TA;
+		uint8_t N_AE;
+		uint32_t ID;
+		uint8_t DLC;
+		uint8_t RTR;
+		uint8_t IDE;
+		bool valid;	
+		uint8_t data[64]
+	}CanData;
+}NetworkFrame;
+
+typedef struct{
+	FS_Type FS_Type;
+	uint8_t BlockSize;
+	uint8_t CompletedNumberInBlock;
+	uint8_t STmin;
+	uint8_t SN;
+	uint32_t TotalDataNumber; /* CANFD*/
+	uint32_t CompletedDataNumber;
+	uint32_t BuffSize; // uint16,i.e. 64kB	
+}CommuParam;
+
+typedef enum{
+	CONFIRM,
+	FF_INDICATION,
+	INDICATION,
+}NetWorkNotificationType;/*define the notification type  which use to communication with application layer */
+
+typedef struct{
+	NetWorkNotificationType NotificationType;
+	MType Mtype;
+	uint8_t N_SA;
+	uint8_t N_TA;
+	N_TAtype N_TAtype;
+	uint8_t N_AE;
+	uint8_t *MessageData;
+	uint32_t length; /* CANFD*/
+	N_Result N_Resut;
+	bool valid;
+}NetworkNotification;
+
+#else  //only for can frame
+typedef union{
+	struct{
+		MType Mtype;
+		N_TAtype N_TAtype;
+		uint8_t N_SA;
+		uint8_t N_TA;
+		uint8_t N_AE;
+		uint32_t ID;
+		uint8_t DLC;
+		uint8_t RTR;
+		uint8_t IDE;
+		bool valid;	
 		uint8_t data7;
 		uint8_t data6;
 		uint8_t data5;
 		uint8_t data4;
 		uint8_t data3;
-		uint8_t STmin;		//STmin ,data2
-		uint8_t FF_DL_LOW;	//BS ,FF_DL_LOW ,data1
+		uint8_t STmin;		//data2
+		uint8_t FF_DL_LOW;	//data1
 		uint8_t SF_DL:4;		//SF_DL ,FF_DL_HIGH ,TxParam.SN ,FS
 		N_PCIType N_PciType:4;
 	}N_PDU;
@@ -175,16 +249,9 @@ typedef struct{
 	uint8_t CompletedNumberInBlock;
 	uint8_t STmin;
 	uint8_t SN;
-#ifdef SUPPORT_CAN_FD
-	uint32_t TotalDataNumber; /* CANFD*/
-	uint32_t CompletedDataNumber;
-	uint32_t BuffSize; // uint16,i.e. 64kB
-#else
 	uint16_t TotalDataNumber; /* CAN*/
 	uint16_t CompletedDataNumber;
 	uint16_t BuffSize; // uint16,i.e. 64kB
-#endif	
-
 }CommuParam;
 
 typedef enum{
@@ -211,6 +278,9 @@ typedef struct{
 	bool valid;
 }NetworkNotification;
 
+#endif
+
+
 #ifndef NULL
 	#define NULL (void*)(0)
 #endif
@@ -222,8 +292,5 @@ typedef struct{
 }
 #endif
 
-
 #endif /* __NMLAYER_TYPE_DEFINES_H */
 
-
-/******************* (C) COPYRIGHT 2015 Soundtech *****END OF FILE****/
