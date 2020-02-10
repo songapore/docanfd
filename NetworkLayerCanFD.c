@@ -632,11 +632,183 @@ void NetworkLayer_SendFC(void) //can 与canfd流控帧完全一致
 	#endif
 }
 
+
+
+
 /**
   * @brief  网络层-接收单帧，在NetworkLayer_RxProc()中调用 
   * @param	RxFrame	链路层传入的CAN Frame.
   * @retval None.
   */
+#ifdef SUPPORT_CAN_FD
+void NetworkLayer_RxSF(NetworkFrame RxFrame)
+{
+	if (RxFrame.CanData.data[0] != 0)
+	{	//can format single frame
+		if ((RxFrame.N_PDU.SF_DL >= 1) && (RxFrame.N_PDU.SF_DL <= 7))// 1<=sf_dl <=7
+		{
+			/*valid SF*/
+			if (RxFrame.N_PDU.DLC <= 8) //DLC valid
+			{
+				/*valid DLC of SF*/
+				if (m_DuplexMode == FULL_DUPLEX)
+				{
+					if (m_NetworkStatus == NWL_RECIVING)
+					{
+						m_N_Result = N_UNEXP_PDU;
+						m_NetworkStatus = NWL_IDLE;//new start of reception
+					}
+					else if (m_NetworkStatus == NWL_TRANSMITTING || m_NetworkStatus == NWL_IDLE)
+					{
+						m_N_Result = N_OK;
+						m_NetworkStatus = NWL_IDLE;//only when Full-duplex
+					}
+
+					RxDataBuff[0] = RxFrame.CanData.data1;
+					RxDataBuff[1] = RxFrame.CanData.data2;
+					RxDataBuff[2] = RxFrame.CanData.data3;
+					RxDataBuff[3] = RxFrame.CanData.data4;
+					RxDataBuff[4] = RxFrame.CanData.data5;
+					RxDataBuff[5] = RxFrame.CanData.data6;
+					RxDataBuff[6] = RxFrame.CanData.data7;
+					N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+				}
+				else if (m_DuplexMode == HALF_DUPLEX)// use half duplex
+				{
+					if (m_NetworkStatus == NWL_RECIVING)/*m_NetworkStatus = NWL_IDLE, NWL_TRANSMITTING, NWL_RECIVING, NWL_WAIT, */
+					{
+						/*N_UNEXP_PDU：接收过程中收到SF:
+						1. 终止当前单帧接收。
+						2. 告知upper layer, m_N_Result = N_UNEXP_PDU;
+						3. 处理sf并作为一个新单开始*/
+						m_N_Result = N_UNEXP_PDU; /*unexpected N_PDU*/
+						m_NetworkStatus = NWL_IDLE;//new start of reception
+						
+						for ( i = 0; i < 7; i++) //payload赋值给buffer
+						{
+							RxDataBuff[i] = RxFrame.CanData.data[i+1]
+						}
+
+						/*当收到SF 或segment messages 传输完成时，调用indication 告知upper layer,*/
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+					}
+					else if (m_NetworkStatus == NWL_IDLE)
+					{
+						/*网络层空闲状态收到SF,m_N_Result = N_OK */
+						m_N_Result = N_OK;
+						RxDataBuff[0] = RxFrame.CanData.data1;
+						RxDataBuff[1] = RxFrame.CanData.data2;
+						RxDataBuff[2] = RxFrame.CanData.data3;
+						RxDataBuff[3] = RxFrame.CanData.data4;
+						RxDataBuff[4] = RxFrame.CanData.data5;
+						RxDataBuff[5] = RxFrame.CanData.data6;
+						RxDataBuff[6] = RxFrame.CanData.data7;
+						/*indication to upper layer,收到SF*/
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+					}
+					else if (m_NetworkStatus == NWL_TRANSMITTING)
+					{
+						//printf("half duplex mode,ignore SF when transmiting\r\n");
+					}
+				}
+			}
+			else
+			{
+				/*invalid DLC of SF*/
+				//printk("SF invalid DLC:%d\r\n", RxFrame.N_PDU.DLC);
+			}
+		}
+		else
+		{
+			/*RxFrame为非法单帧*/
+			//printk("SF invalid len %d\r\n",RxFrame.N_PDU.SF_DL);
+		}
+	}
+	else 
+	{	//canfd format single frame
+		if ((RxFrame.N_PDU.SF_DL >= 1) && (RxFrame.N_PDU.SF_DL <= 7))//data length filter
+		{
+			/*valid SF */
+			if (RxFrame.N_PDU.DLC == 8)//DLC filter
+			{
+				/*valid DLC of SF*/
+				if (m_DuplexMode == FULL_DUPLEX)
+				{
+					if (m_NetworkStatus == NWL_RECIVING)
+					{
+						m_N_Result = N_UNEXP_PDU;
+						m_NetworkStatus = NWL_IDLE;//new start of reception
+					}
+					else if (m_NetworkStatus == NWL_TRANSMITTING || m_NetworkStatus == NWL_IDLE)
+					{
+						m_N_Result = N_OK;
+						m_NetworkStatus = NWL_IDLE;//only when Full-duplex
+					}
+
+					RxDataBuff[0] = RxFrame.CanData.data1;
+					RxDataBuff[1] = RxFrame.CanData.data2;
+					RxDataBuff[2] = RxFrame.CanData.data3;
+					RxDataBuff[3] = RxFrame.CanData.data4;
+					RxDataBuff[4] = RxFrame.CanData.data5;
+					RxDataBuff[5] = RxFrame.CanData.data6;
+					RxDataBuff[6] = RxFrame.CanData.data7;
+					N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+				}
+				else if (m_DuplexMode == HALF_DUPLEX)// use half duplex
+				{
+					if (m_NetworkStatus == NWL_RECIVING)/*m_NetworkStatus = NWL_IDLE,NWL_TRANSMITTING,NWL_RECIVING,NWL_WAIT, */
+					{
+						/*N_UNEXP_PDU：接收过程中收到SF:
+						1. 终止当前单帧接收。
+						2. 告知upper layer, m_N_Result = N_UNEXP_PDU;
+						3. 处理sf并作为一个新单开始*/
+						m_N_Result = N_UNEXP_PDU; /*unexpected N_PDU*/
+						m_NetworkStatus = NWL_IDLE;//new start of reception
+						RxDataBuff[0] = RxFrame.CanData.data1;
+						RxDataBuff[1] = RxFrame.CanData.data2;
+						RxDataBuff[2] = RxFrame.CanData.data3;
+						RxDataBuff[3] = RxFrame.CanData.data4;
+						RxDataBuff[4] = RxFrame.CanData.data5;
+						RxDataBuff[5] = RxFrame.CanData.data6;
+						RxDataBuff[6] = RxFrame.CanData.data7;
+						/*indication to upper layer,收到SF*/
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+					}
+					else if (m_NetworkStatus == NWL_IDLE)
+					{
+						/*网络层空闲状态收到SF,m_N_Result = N_OK */
+						m_N_Result = N_OK;
+						RxDataBuff[0] = RxFrame.CanData.data1;
+						RxDataBuff[1] = RxFrame.CanData.data2;
+						RxDataBuff[2] = RxFrame.CanData.data3;
+						RxDataBuff[3] = RxFrame.CanData.data4;
+						RxDataBuff[4] = RxFrame.CanData.data5;
+						RxDataBuff[5] = RxFrame.CanData.data6;
+						RxDataBuff[6] = RxFrame.CanData.data7;
+						/*indication to upper layer,收到SF*/
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+					}
+					else if (m_NetworkStatus == NWL_TRANSMITTING)
+					{
+						//printf("half duplex mode,ignore SF when transmiting\r\n");
+					}
+				}
+			}
+			else
+			{
+				/*invalid DLC of SF*/
+				//printk("SF invalid DLC:%d\r\n", RxFrame.N_PDU.DLC);
+			}
+		}
+		else
+		{
+			/*RxFrame为非法单帧*/
+			//printk("SF invalid len %d\r\n",RxFrame.N_PDU.SF_DL);
+		}
+	}
+}
+
+#else
 void NetworkLayer_RxSF(NetworkFrame RxFrame)
 {
 	if((RxFrame.N_PDU.SF_DL >= 1) && (RxFrame.N_PDU.SF_DL <= 7))//data length filter
@@ -719,12 +891,15 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame)
 		//printk("SF invalid len %d\r\n",RxFrame.N_PDU.SF_DL);
 	}
 }
+#endif
+
 
 /**
   * @brief  网络层-接收首帧，在NetworkLayer_RxProc()中调用 
   * @param	RxFrame	链路层传入的CAN Frame.
   * @retval None.
   */
+
 void NetworkLayer_RxFF(NetworkFrame RxFrame)
 {
 	if(RxFrame.CanData.N_TAtype == PHYSICAL)
@@ -998,7 +1173,7 @@ void NetworkLayer_RxFC(NetworkFrame RxFrame)
 }
 
 /**
-  * @brief  网络层-接收处理模块，其根据pci值调用NetworkLayer_RxSF/FF/CF/FC 
+  * @brief  网络层-接收处理模块，当buffer非空时，其根据pci值调用NetworkLayer_RxSF/FF/CF/FC 
   * @param	None.
   * @retval None.
   */
@@ -1035,10 +1210,46 @@ void NetworkLayer_RxProc(void)
 }
 
 /**
-  * @brief  网络层-接收链路层CAN Frame模块，并存放在RxFrameBuff中，
+  * @brief  网络层-接收链路层CAN Frame模块，并存放在RxFrameBuff中，仅仅接收数据，未做处理
   * @param	ID.
   * @retval None.
   */
+#ifdef SUPPORT_CAN_FD
+void NetworkLayer_RxFrame(uint32_t ID, uint8_t* data, uint8_t IDE, uint8_t DLC, uint8_t RTR)
+{
+	if (ID == m_PyhReqID || ID == m_FunReqID || ID == m_PyhReqID1 || ID == m_FunReqID1)/* ID filter */
+	{
+		/*valid id */
+		uint8_t i;
+		NetworkFrame TempFrame;
+		for (i = 0; i < DLC; i++)
+		{
+			*(&(TempFrame.CanData.data7) + (7 - i)) = *(data + i);  //payload 
+		}
+
+		TempFrame.CanData.ID = ID; /*ID:4bytes*/
+		TempFrame.CanData.DLC = DLC;
+		TempFrame.CanData.RTR = RTR;
+		TempFrame.CanData.IDE = IDE;
+		TempFrame.CanData.N_SA = (uint8_t)(ID >> 8);/*N_SA:1byte */
+		TempFrame.CanData.N_TA = (uint8_t)ID;/*N_TA:最低字节*/
+		(ID == CAN_ID_DIAGNOSIS_FUNCTION || ((ID & 0x0000FF00) == 0x0000FF00)) ? (TempFrame.CanData.N_TAtype = FUNCTIONAL) : (TempFrame.CanData.N_TAtype = PHYSICAL);
+
+		RxFrameBuff[RxInIndex] = TempFrame; /*将收到低can frame 放入RxFrameBuff中 */
+		(RxInIndex >= MAX_BUFF_NUMBER - 1) ? (RxInIndex = 0) : (RxInIndex++);
+
+	}
+
+	if (ID == m_PyhReqID || ID == m_FunReqID)
+	{
+		m_CurrResponseID = m_ResponseID;
+	}
+	else if (ID == m_PyhReqID1 || ID == m_FunReqID1)
+	{
+		m_CurrResponseID = m_ResponseID1;
+	}
+}
+#else	
 void NetworkLayer_RxFrame(uint32_t ID,uint8_t* data,uint8_t IDE,uint8_t DLC,uint8_t RTR)
 {
 	if(ID == m_PyhReqID || ID == m_FunReqID || ID == m_PyhReqID1 || ID == m_FunReqID1)/* ID filter */
@@ -1083,6 +1294,9 @@ void NetworkLayer_RxFrame(uint32_t ID,uint8_t* data,uint8_t IDE,uint8_t DLC,uint
 		m_CurrResponseID = m_ResponseID1;
 	}
 }
+#endif
+
+
 
 /**
   * @brief  网络层-发送CAN Frame给链路层，

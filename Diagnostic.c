@@ -2791,9 +2791,9 @@ void Diagnostic_MainProc(void)
 	if(!IsIndicationListEmpty())
 	{
 		NetworkNotification temp = PullIndication();
-		rxId = ((temp.N_SA << 8) + temp.N_TA);
+		rxId = ((temp.N_SA << 8) + temp.N_TA); // CAN报文只用到TA了，以太网等场景会用到
 		
-		if(temp.NotificationType == INDICATION)
+		if(temp.NotificationType == INDICATION) //当收到单帧或者segment messages传输完成时，网络层发送indication
 		{
 			uint8_t RequestEquipment = 0xFF;
 			if((rxId & 0xFFFF) == (TesterPhyID & 0xFFFF) || (rxId & 0xFFFF) == (TesterFunID & 0xFFFF))
@@ -2821,19 +2821,19 @@ void Diagnostic_MainProc(void)
 					#else
 					if((temp.N_TAtype == FUNCTIONAL) && ((m_NRC == SNS) || (m_NRC == SFNS) || (m_NRC == SFNSIAS) || (m_NRC == ROOR)) && (ResponsePending == FALSE))
 					#endif
-					{
+					{	/*  negative response  */
 						//printf("res supress,pending =  %d\r\n",ResponsePending);
-						/* suppress negative response message */
+						
 					}
 					else if (suppressResponse == TRUE)
-					{
+					{	/* suppress positive response message */
 						//printf("res supress bit is TRUE\r\n");
-						/* suppress positive response message */
+						
 					}
 					else
 					{
 						if(m_NRC == PR)
-						{
+						{	//positve response
 							N_USData_request(DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , DiagnosticBuffTX , ResponseLength);
 						}
 						else
