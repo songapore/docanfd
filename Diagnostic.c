@@ -274,7 +274,7 @@ bool ResponsePending;									//�Ƿ��͹�78����Ӧ
 bool suppressResponse;
 uint16_t ResponseLength;
 uint8_t CurrentService;
-static uint8_t DiagnosticBuffTX[200];							//�������ݵĻ���
+static uint8_t DiagnosticBuffTX[200];							//�������ݵĻ��� //各诊断服务处理后，将payload放在DiagnosticBuffT中
 static uint8_t J1939BufTX[90];
 static DiagTimer S3serverTimer;							 //S3��ʱ��
 static uint16_t P2CanServerMax = 0x32;						//�ػ�����
