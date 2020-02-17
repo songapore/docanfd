@@ -26,7 +26,7 @@ static AddressFormat m_AddressFormat;
 static uint8_t* CFDataPionter;
 static CommuParam TxParam; /*for dynamic param */
 static CommuParam RxParam;
-static uint8_t NetworkDataBufRx[MAX_DTCDATA_BUF]; //收到segment message时，保存数据用
+static uint8_t NetworkDataBufRx[MAX_DTCDATA_BUF]; //收到segment message时，单位为bytes.
 uint8_t FrameFillData; /*request:0x55,response:0xAA */
 static uint32_t m_PyhReqID;
 static uint32_t m_FunReqID;
@@ -50,7 +50,7 @@ static uint32_t m_CurrResponseID;
 
 /************private function prototype*********/
 void NetworkLayer_SendSF(uint8_t length, uint8_t *data);
-void NetworkLayer_SendFF(uint16_t length, uint8_t *data);
+void NetworkLayer_SendFF(uint32_t length, uint8_t *data);
 void NetworkLayer_SendCF(void);
 void NetworkLayer_SendFC(void);
 void NetworkLayer_TxEnd(void);
@@ -66,8 +66,13 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame);
 void NetworkLayer_RxFF(NetworkFrame RxFrame);
 void NetworkLayer_RxCF(NetworkFrame RxFrame);
 void NetworkLayer_RxFC(NetworkFrame RxFrame);
-void N_USData_indication(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length, N_Result N_Result);
+#ifdef SUPPORT_CAN_FD
+void N_USData_indication(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint32_t Length, N_Result N_Result);
+void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint32_t Length);
+#else
+void N_USData_indication(N_PCIType PciType, MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length, N_Result N_Result);
 void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint16_t Length);
+#endif
 void N_USData_confirm(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, N_Result N_Result);
 bool IsRxBuffEmpty(void);
 bool IsRxBuffFull(void);
@@ -749,7 +754,7 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame)
 						}
 					}
 
-					N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+					N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.CanData.data[1], m_N_Result);
 				}
 				else if (m_DuplexMode == HALF_DUPLEX)// use half duplex
 				{
@@ -770,7 +775,7 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame)
 							}
 						}
 						/*indication to upper layer,收到canfd SF*/
-						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.CanData.data[1], m_N_Result);
 					}
 					else if (m_NetworkStatus == NWL_IDLE)
 					{
@@ -785,7 +790,7 @@ void NetworkLayer_RxSF(NetworkFrame RxFrame)
 							}
 						}
 						/*indication to upper layer,收到canfd SF*/
-						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.N_PDU.SF_DL, m_N_Result);
+						N_USData_indication(SF, RxFrame.CanData.Mtype, RxFrame.CanData.N_SA, RxFrame.CanData.N_TA, RxFrame.CanData.N_TAtype, RxFrame.CanData.N_AE, RxDataBuff, RxFrame.CanData.data[1], m_N_Result);
 					}
 					else if (m_NetworkStatus == NWL_TRANSMITTING)
 					{
@@ -1753,7 +1758,7 @@ void NetworkLayer_NotifyToUpperLayer(NetworkNotification notify)
   * @retval None.
   */
 #ifdef SUPPORT_CAN_FD
-void N_USData_request(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length)//interface request for upper layer
+void N_USData_request(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint32_t Length)//interface request for upper layer
 {																													//uint16_t:  2^16 Bytes=64KB,发送的数据最大值？
 	m_AddressFormat.Mtype = Mtype;
 	m_AddressFormat.N_SA = N_SA;
@@ -1868,7 +1873,8 @@ void N_USData_confirm(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA,
   * @param	.
   * @retval None.
   */
-void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint16_t Length)
+#ifdef SUPPORT_CAN_FD
+void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint32_t Length)
 {
 	NetworkNotification notify;
 	notify.NotificationType = FF_INDICATION;
@@ -1882,6 +1888,21 @@ void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_
 	NetworkLayer_NotifyToUpperLayer(notify);
 }
 
+#else
+void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint16_t Length)
+{
+	NetworkNotification notify;
+	notify.NotificationType = FF_INDICATION;
+	notify.Mtype = Mtype;
+	notify.N_SA = N_SA;
+	notify.N_TA = N_TA;
+	notify.N_TAtype = N_TAtype;
+	notify.N_AE = N_AE;
+	notify.valid = TRUE;
+	notify.length = Length;
+	NetworkLayer_NotifyToUpperLayer(notify);
+}
+#endif
 
 
 
@@ -1891,7 +1912,7 @@ void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_
   * @retval None.
   */
 #ifdef SUPPORT_CAN_FD
-void N_USData_indication(N_PCIType PciType, MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length, N_Result N_Result)
+void N_USData_indication(N_PCIType PciType, MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint32_t Length, N_Result N_Result)
 {
 	uint8_t i;
 	NetworkNotification notify;

@@ -14,7 +14,7 @@
 
 
 #include "NetworkLayerCanFD.h"
-#define SUPPORT_CAN_FD      1 //song
+#define SUPPORT_CAN_FD   
 
 #ifdef __cplusplus
  extern "C" {
@@ -175,7 +175,7 @@ typedef struct{
 	uint8_t SN;
 	uint32_t TotalDataNumber; /* CANFD*/
 	uint32_t CompletedDataNumber;
-	uint32_t BuffSize; // uint16,i.e. 64kB	
+	uint32_t BuffSize; // uint16,i.e. 64kB	
 }CommuParam;
 
 typedef enum{

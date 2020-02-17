@@ -6,7 +6,7 @@
 
 #define MAX_BUFF_NUMBER			3
 #define MAX_INDICATION_NUMBER		3
-#define MAX_DTCDATA_BUF			100
+#define MAX_DTCDATA_BUF			100    //一次接收的最大字节数，根据硬件更改
 #define MAX_DOWNLOADING_BUF		MAX_DTCDATA_BUF
 
 #define CAN_ID_DIAGNOSIS_FUNCTION 		0x7DF
@@ -18,7 +18,9 @@
 void NetworkLayer_InitParam(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID,SendCANFun sendFun);
 void NetworkLayer_SetSecondID(uint32_t PyhReqID,uint32_t FunReqID, uint32_t ResponseID);
 void NetworkLayer_Proc(void);
-void N_USData_request(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length);
+void N_USData_request(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint32_t Length);
+//void N_USData_request(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length);
+
 //void N_USData_confirm(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, N_Result N_Result);
 // void N_USData_FF_indication(MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint16_t Length);
 // void N_USData_indication(N_PCIType PciType,MType Mtype, uint8_t N_SA, uint8_t N_TA, N_TAtype N_TAtype, uint8_t N_AE, uint8_t* MessageData, uint16_t Length, N_Result N_Result);
