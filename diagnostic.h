@@ -3,45 +3,45 @@
 #include "NetworkLayerTypeDefines.h"
 
 typedef enum{
-	LEVEL_ZERO = 7,
-	LEVEL_ONE = 1,
-	LEVEL_TWO = 2,
-	LEVEL_THREE = 4,
-	LEVEL_FOUR = 8,
-	LEVEL_UNSUPPORT = 0,
-}SecurityLevel;
+	LEVEL_ZERO = 7,//安全等级0，当一个服务不需要安全解锁时，使用此安全等级。
+	LEVEL_ONE = 1,//安全等级1，当一个服务可以在安全等级1时，使用此安全等级。
+	LEVEL_TWO = 2,//安全等级2，当一个服务可以在安全等级2时，使用此安全等级。
+	LEVEL_THREE = 4,//安全等级3，当一个服务可以在安全等级3时，使用此安全等级。
+	LEVEL_FOUR = 8,//安全等级4，工厂模式会话使用此安全等级，用户零部件商下线配置。
+	LEVEL_UNSUPPORT = 0,//不支持，当一个服务在某个会话模式不支持时，使用此等级。
+}SecurityLevel;//安全等级定义
 
 typedef enum{
-	HARD_RESET = 1,
-	KEY_OFF_ON_RESET = 2,
-	SOFT_RESET = 3,
-	ENABLE_RAPID_POWER_SHUTDOWN = 4,
-	DISABLE_RAPID_POWER_SHUTDOWN = 5,
-}EcuResetType;
+	HARD_RESET = 1,//硬件复位
+	KEY_OFF_ON_RESET = 2,//关开钥匙复位
+	SOFT_RESET = 3,//软件复位
+	ENABLE_RAPID_POWER_SHUTDOWN = 4,//预留，一般不使用
+	DISABLE_RAPID_POWER_SHUTDOWN = 5,//预留，一般不使用
+}EcuResetType;//复位类型
 
 typedef enum{
 	ISO15031_6DTCFORMAT= 1,
-	ISO14229_1DTCFORMAT = 2,
+	ISO14229_1DTCFORMAT = 2,//
 	SAEJ1939_73DTCFORMAT = 3,
-}DTCFormatIdentifier;
+}DTCFormatIdentifier;//DTC类型定义
 
 typedef enum{
-	PASSED,
-	IN_TESTING,
-	FAILED,
-}DTCTestResult;
+	PASSED,//测试通过
+	IN_TESTING,//测试未完成
+	FAILED,//测试失败
+}DTCTestResult;//诊断故障状态定义
 
 typedef enum{
-	EEPROM_DID,
-	REALTIME_DID,
-	IO_DID,
-}DIDType;
+	EEPROM_DID, //静态存储器DID，存储在EEPROM中的DID使用此类型
+	REALTIME_DID, //实时DID，存储在RAM中，会实时改变的数据使用此类型
+	IO_DID,	//输入输出控制DID，需要通过2F服务控制的DID使用此类型
+}DIDType; //DID类型定义
 
 typedef enum{
-	READONLY = 1,
-	WRITEONLY = 2,
-	READWRITE = 3,
-}ReadWriteAttr;
+	READONLY = 1,//只读
+	WRITEONLY = 2,//只写
+	READWRITE = 3,//可读写
+}ReadWriteAttr; //DID的读写属性
 
 typedef enum{
 	ERXTX,//enableRxAndTx
@@ -50,13 +50,13 @@ typedef enum{
 	DRXTX,//disableRxAndTx
 	//ERXDTXWEAI,//enableRxAndDisableTxWithEnhancedAddressInformation
 	//ERXTXWEAI,//enableRxAndTxWithEnhancedAddressInformation
-}CommulicationType;
+}CommulicationType; //通信控制参数
 
 typedef enum{
 	NCM = 1,//application message
 	NWMCM,//network manage message
 	NWMCM_NCM,//application and netwrok manage message
-}communicationParam;
+}communicationParam; //通信控制的控制对象参数
 
 typedef enum{
 	SUB_DEFAULT = 1,//sub function supported in default session
@@ -64,20 +64,20 @@ typedef enum{
 	SUB_EXTENDED = 4,////sub function supported in extedned session
 	SUB_FACTORY = 8,//sub funcion supported in factory session,
 	SUB_ALL = 7,//sub function supported in both of three session
-}SubFunSuppInSession;
+}SubFunSuppInSession;	//子功能在会话的支持情况
 
 typedef enum{
 	LEVEL_A,
 	LEVEL_B,
 	LEVEL_C,
-}DTCLevel;
+}DTCLevel;//诊断故障码的等级
 
-typedef uint8_t (*IoControl)(uint8_t ctrl, uint8_t param);
-typedef uint32_t (*SecurityFun)(uint32_t);
-typedef DTCTestResult (*DetectFun)(void);
-typedef void (*ResetCallBack)(EcuResetType);
-typedef void (*CommCallBack)(CommulicationType , communicationParam);
-typedef uint8_t (*SendCANFun)(uint32_t ID, uint8_t *array, uint8_t length, uint8_t priority, uint8_t rtr, uint8_t ide);
+typedef uint8_t (*IoControl)(uint8_t ctrl, uint8_t param);//输入输出控制接口函数
+typedef uint32_t (*SecurityFun)(uint32_t);//安全解锁算法接口函数
+typedef DTCTestResult (*DetectFun)(void);//DTC的检测接口函数
+typedef void (*ResetCallBack)(EcuResetType);//复位接口函数
+typedef void (*CommCallBack)(CommulicationType , communicationParam);//通信控制接口函数
+typedef uint8_t (*SendCANFun)(uint32_t ID, uint8_t *array, uint8_t length, uint8_t priority, uint8_t rtr, uint8_t ide);//CAN发送接口函数
 
 #define   USE_MALLOC			0
 #define	USE_J1939_DTC		0

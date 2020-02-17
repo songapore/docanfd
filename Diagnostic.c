@@ -156,7 +156,7 @@ typedef struct _DtcNode{
 	#if USE_MALLOC
 	struct _DtcNode* next;
 	#endif
-}DTCNode;
+}DTCNode; 
 
 typedef struct _DidNode{
 	uint16_t ID;
@@ -434,6 +434,19 @@ SessionService ServiceList[SERVICE_NUMBER] = {
 /* Public functions ----------------------------------------------------------*/
 
 /*========interface for application layer setting diagnostic parameters==============*/
+/**
+  * @brief  添加安全算法的函数.此函数的功能是为诊断模块的添加安全算法，最多支持三个等级的安全算法，如果不添加安全算法，27服务将没有正响应。
+  * @param  Level：能使用LEVEL_ONE，LEVEL_TWO，LEVEL_THREE，不能使用LEVEL_ZERO和LEVEL_UNSUPPORT
+  * @param  AlgoritthmFun：安全解锁算法函数，
+  * @param  SeedSubFunctionNum：此算法支持的请求种子的子功能，如“27 01”中的“01”
+  * @param  KeySubFunctionNum ：此算法支持的发送秘钥的子功能，如“27 02”中的“02”
+  * @param  FaultCounter：预留参数，设置为NULL
+  * @param  FaultLimitCounter：解锁失败次数限制，超时此次数时，启用延时
+  * @param  UnlockFailedDelayTimeMS：解锁失败后延时时间，单位为毫秒，如3000表示3秒
+  * @param  SubFuntioncSupportedInSession：子功能在会话模式的支持情况，可以是SUB_PROGRAM ，SUB_EXTENDED，也可以都支持，使用按位或的方式SUB_PROGRAM | SUB_EXTENDED。
+  * @param  KeySize：seed和可以的长度，可以设置为2或者4。设置为2时只使用高生成种子的高两个字节，解锁算法生成的秘钥也需要放到高两个字节。设置为4时将使用所有字节。
+  * @retval bool.
+  */
 bool InitAddSecurityAlgorithm(SecurityLevel level, SecurityFun AlgoritthmFun,byte SeedSubFunctionNum,byte KeySubFunctionNum , uint8_t* FaultCounter,uint8_t FaultLimitCounter , uint32_t UnlockFailedDelayTimeMS, SubFunSuppInSession SubFuntioncSupportedInSession,uint8_t KeySize)
 {
 	uint8_t i;
@@ -463,11 +476,37 @@ uint32_t FactorySecuritySeedToKey(uint32_t seed)
 	return 0x12345678;
 }
 
+/**
+  * @brief  初始化工厂模式安全算法函数.此函数内部会调用InitAddSecurityAlgorithm函数，添加安全算法，算法包含于内部，如不进行此初始化，工厂模式将无法解锁。
+  * @param	None
+  * @retval None.
+  */
 void InitFactorySecuriyAlgorithm(void)
 {
 	InitAddSecurityAlgorithm(LEVEL_FOUR,FactorySecuritySeedToKey,0x71,0x72, NULL ,3 , 10000, SUB_FACTORY,4);
 }
 
+
+/**
+  * @brief  配置服务的函数
+  * @param  Support：只能为TRUE，如果为FALSE和未配置一样会有11否定响应。
+  * @param  Service：服务名称，如0x10，0x11，0x27等（一次只能使用一个）
+  * @param  PHYDefaultSession_Security：服务在物理寻址 默认会话 支持的安全访问等级。
+  * @param  PHYProgramSeesion_Security：服务在物理寻址 编程会话 支持的安全访问等级。
+  * @param  PHYExtendedSession_Security：服务在物理寻址 扩展会话 支持的安全访问等级。
+  * @param  FUNDefaultSession_Security,：服务在功能寻址 默认会话 支持的安全访问等级。
+  * @param  FUNProgramSeesion_Security：服务在功能寻址 编程会话 支持的安全访问等级。
+  * @param  FUNExtendedSession_Security：服务在功能寻址 扩展会话 支持的安全访问等级。
+  * @retval None.
+注意：以上6个参数，
+如果不支持，则使用LEVEL_UNSUPPORT，
+如果支持,
+不需要安全解锁，则使用LEVEL_ZERO,
+如果需要安全解锁等级1才能支持，则使用	LEVEL_ONE，
+如果需要安全解锁等级2才能支持，则使用LEVEL_TWO，
+如果需要安全解锁等级3才能支持，则使用LEVEL_THREE，
+如果同时支持多个安全等级，则只用按位或的方式，如LEVEL_TWO|LEVEL_THREE
+  */
 bool InitSetSessionSupportAndSecurityAccess(bool support ,uint8_t service,uint8_t PHYDefaultSession_Security,	uint8_t PHYProgramSeesion_Security,	uint8_t PHYExtendedSession_Security,	uint8_t FUNDefaultSession_Security,	uint8_t FUNProgramSeesion_Security,	uint8_t FUNExtendedSession_Security)
 {
 	uint8_t i;
@@ -492,6 +531,19 @@ bool InitSetSessionSupportAndSecurityAccess(bool support ,uint8_t service,uint8_
 	return FALSE;
 }
 
+
+/**
+  * @brief  添加DID的接口函数，
+  * @param	DID：DID数字，如：0xF190
+  * @param	DataLength：DID的数据长度，如F190为17。
+  * @param	DataPointer：DID数据指针，此指针由应用程序提供，当类型为EEPROM_DID时，此参数设为NULL，类型为IO_DID并且不需要读时，也可设置为NULL。
+  * @param	DidType:DID的类型可以是EEPROM_DID,REALTIME_DID,IO_DID。
+  * @param	ControlFun：输入输出控制的函数指针，当类型不为IO_DID时，此参数设置为NULL。
+  * @param	RWAttr：读写属性
+  * @param	EEaddr：DID的eeprom地址只有DidType为EEPROM_DID时有效，当此参数为0时，诊断模块将自动分配eeprom地址，因此如果不需要手动指定地址，将此值设置为0即可。
+  * @param	SupportWriteInFactoryMode:是否支持在工厂模式可写。
+  * @retval None.
+  */
 void InitAddDID(uint16_t DID , uint8_t DataLength , uint8_t* DataPointer , DIDType DidType , IoControl ControlFun , ReadWriteAttr RWAttr,uint16_t EEaddr, bool SupportWriteInFactoryMode)
 {
 	#if USE_MALLOC
@@ -556,6 +608,16 @@ void InitAddDID(uint16_t DID , uint8_t DataLength , uint8_t* DataPointer , DIDTy
 	#endif
 }
 
+
+/**
+  * @brief  添加故障码的接口函数
+  * @param  DTCCode：诊断故障代码，如0x910223，诊断模块只使用低24位，高8位设置为零。
+  * @param  MonitorFun：故障检测函数指针。
+  * @param  DectecPeroid：故障检测周期，此参数暂未使用，可以设置为0.
+  * @param  ValidTimes：故障有效次数，记录历史故障码的故障出现次数，当在历史故障和当前故障码同时置位时，设置为1，当历史故障码需要多个点火循环才能置位时，可设置为大于等于2的数。2表示需要两个点火周期，3表示3个，类推。
+  * @param  dtcLevel：故障等级，仅HD10使用，可以设置为LEVEL_C
+  * @retval None.
+  */
 #if USE_J1939_DTC
 bool InitAddDTC(uint32_t DTCCode,DetectFun MonitorFun,byte DectecPeroid, byte ValidTimes,DTCLevel dtcLevel,uint32_t spn, uint8_t fmi)
 #else
@@ -611,6 +673,16 @@ bool InitAddDTC(uint32_t DTCCode,DetectFun MonitorFun,byte DectecPeroid, byte Va
 	#endif
 }
 
+
+
+/**
+  * @brief  添加快照信息接口函数
+  * @param  recordNumber：快照信息记录号，如1，表示全局快照，2，表示局部快照。
+  * @param  ID：此快照的ID，如0x9102表示快照车速信息。
+  * @param  Datap：此快照记录的内存指针，需要是能表示实时状态（如实时车速）的内存指针。
+  * @param  Size：此快照的大小，字节数。
+  * @retval None.
+  */
 void InitAddDTCSnapShot(uint8_t recordNumber , uint16_t ID , uint8_t* datap , uint8_t size)
 {
 	if(SnapShotAdded < MAX_SNAPSHOT_NUMBER)
@@ -623,25 +695,50 @@ void InitAddDTCSnapShot(uint8_t recordNumber , uint16_t ID , uint8_t* datap , ui
 	}
 }
 
+
+/**
+  * @brief  设置故障扩展信息-老化计数器的扩展信息号的接口函数
+  * @param   RecordNumer：老化计数器信息的序号（需要参考诊断规范中19 06的响应信息，一般范围1-4）
+  * @retval None.
+  */
 void InitSetAgingCounterRecordNumber(uint8_t RecordNumer)
 {
 	AgingCounterRecord = RecordNumer;
 }
 
+
+/**
+  * @brief  设置故障扩展信息-已老去计数器的扩展信息号的接口函数
+  * @param   RecordNumer：已老去计数器信息的序号（需要参考诊断规范中19 06的响应信息，一般范围1-4）
+  * @retval None.
+  */
 void InitSetAgedCounterRecordNumber(uint8_t RecordNumer)
 {
 	AgedCounterRecord = RecordNumer;
 }
 
+
+/**
+  * @brief  设置故障扩展信息-故障发生次数计数器的扩展信息号的接口函数
+  * @param   RecordNumer：故障发生次数计数器信息的序号（需要参考诊断规范中19 06的响应信息，一般范围1-4）
+  * @retval None.
+  */
 void InitSetOccurrenceCounterRecordNumber(uint8_t RecordNumer)
 {
 	OccurenceCounterRecord = RecordNumer;
 }
 
+
+/**
+  * @brief  设置故障扩展信息-故障待定计数器的扩展信息号的接口函数
+  * @param  RecordNumer：故障待定计数器信息的序号（需要参考诊断规范中19 06的响应信息，一般范围1-4）
+  * @retval None.
+  */
 void InitSetPendingCounterRecordNumber(uint8_t RecordNumer)
 {
 	PendingCounterRecord = RecordNumer;
 }
+
 
 #if 0
 void InitAddDTCExtendedData(uint16_t ID , uint8_t* datap , uint8_t size)
@@ -656,11 +753,21 @@ void InitAddDTCExtendedData(uint16_t ID , uint8_t* datap , uint8_t size)
 }
 #endif
 
+/**
+  * @brief  设置支持的故障位的接口函数
+  * @param  AvailiableMask：故障位，如0x09表示支持当前位和历史位
+  * @retval None.
+  */
 void InitSetDTCAvailiableMask(uint8_t AvailiableMask)
 {
 	DtcAvailibaleMask = AvailiableMask;
 }
 
+/**
+  * @brief  设置DTCgroup的接口函数
+  * @param  Group：14服务的group，目前支持支0xFFFFFF（仅低24位有效），清除所有故障码。
+  * @retval None.
+  */
 void InitAddDTCGroup(uint32_t Group)
 {
 	#if USE_MALLOC
@@ -689,53 +796,122 @@ void InitAddDTCGroup(uint32_t Group)
 	#endif
 }
 
+/**
+  * @brief  配置11服务的接口函数
+  * @param  support01:11服务是否支持01子功能，TRUE:支持，FALSE：不支持
+  * @param  support02:11服务是否支持02子功能，TRUE:支持，FALSE：不支持
+  * @param  support03:11服务是否支持03子功能，TRUE:支持，FALSE：不支持
+  * @param  support04:11服务是否支持04子功能，TRUE:支持，FALSE：不支持
+  * @param  support05:11服务是否支持05子功能，TRUE:支持，FALSE：不支持
+  * @param  Callback:复位接口函数指针，由应用提供，诊断模块只调用，具体的复位动作需要应用根据参数执行。
+  * @param  supressPosResponse:是否支持抑制响应，TRUE：支持，FALSE：不支持
+  * @retval None.
+  */
 void InitSetSysResetParam(bool support01 , bool support02 , bool support03 , bool support04 , bool support05 , ResetCallBack callback,bool supressPosResponse)
 {
 	ResetTypeSupport = support01 | (support02<<1) | (support03 << 2) | (support04 << 3) | (support05 << 4) | (supressPosResponse << 5);
 	ResetCallBackFun = callback;
 }
 
+/**
+  * @brief  配置28服务的接口函数
+  * @param  supportSubFun00：是否支持00子功能-使能接收和发送，TRUE：支持，FALSE：不支持
+  * @param  supportSubFun01：是否支持01子功能-使能接收关闭发送，TRUE：支持，FALSE：不支持
+  * @param  supportSubFun02：是否支持02子功能-关闭接收使能发送，TRUE：支持，FALSE：不支持
+  * @param  supportSubFun03：是否支持03子功能-关闭接收和发送，TRUE：支持，FALSE：不支持
+  * @param  supportType01：是否支持控制参数01-一般通信报文，TRUE：支持，FALSE：不支持
+  * @param  supportType02：是否支持控制参数02-网络管理报文，TRUE：支持，FALSE：不支持
+  * @param  supportType03：是否支持控制参数03-通信报文和网络管理报文，TRUE：支持，FALSE：不支持
+  * @param  Callback：通信控制接口函数指针，由应用提供，诊断模式只负责调用，控制逻辑由应用实现。
+  * @param  supressPosResponse：是否支持抑制响应，TRUE：支持，FALSE：不支持
+  * @retval None.
+  */
 void InitSetCommControlParam(bool supportSubFun00, bool supportSubFun01 , bool supportSubFun02 , bool supportSubFun03 , bool supportType01, bool supportType02, bool supportType03, CommCallBack callback, bool supressPosResponse)
 {
 	CommTypeSupport = supportSubFun00 | (supportSubFun01 << 1) | (supportSubFun02 << 2)  | (supportSubFun03 << 3) | (supportType01 << 4) | (supportType02 << 5) | (supportType03 << 6) | (supressPosResponse << 7);
 	commCallBack = callback;
 }
 
+/**
+  * @brief  配置10服务的接口函数、
+  * @param  supportSub01：是否支持01子功能-默认会话，TRUE：支持，FALSE：不支持
+  * @param  supportSub02：是否支持02子功能-编程会话，TRUE：支持，FALSE：不支持
+  * @param  supportSub03：是否支持03子功能-拓展会话，TRUE：支持，FALSE：不支持
+  * @param  sub02SupportedInDefaultSession：在默认会话是否支持02子功能，TRUE：支持，FALSE：不支持
+  * @param  sub03SupportedInProgramSession：在编程会话是否支持03子功能，TRUE：支持，FALSE：不支持
+  * @param  supressPosResponse：是否支持抑制响应，TRUE：支持，FALSE：不支持
+  * @retval None.
+  */
 void InitSetSessionControlParam(bool supportSub01, bool supportSub02,bool supportSub03, bool sub02SupportedInDefaultSession, bool sub03SupportedInProgramSession, bool supressPosResponse)
 {
 	SessionSupport = supportSub01 | (supportSub02 << 1 ) | (supportSub03 << 2) | (sub02SupportedInDefaultSession << 3) | (sub03SupportedInProgramSession << 4) | (supressPosResponse << 5);
 }
 
+/**
+  * @brief  配置3E服务的接口函数
+  * @param  supressPosResponse：是否支持抑制响应，TRUE：支持，FALSE：不支持
+  * @retval None.
+  */
 void InitSetTesterPresentSupress(bool supressPosResponse)
 {
 	TesterPresentSuppport = (supressPosResponse & 0x01);
 }
 
+/**
+  * @brief  配置85服务的接口函数
+  * @param  supressPosResponse：是否支持抑制响应，TRUE：支持，FALSE：不支持
+  * @retval None.
+  */
 void InitSetDTCControlSupress(bool supressPosResponse)
 {
 	TesterPresentSuppport |= (supressPosResponse << 1);
 }
 
+/**
+  * @brief  配置CAN驱动版本DID的接口函数
+  * @param  DID 由于此数据在诊断模块，应用无法得到，所以使用此接口即可。此函数内部会添加DID。
+  * @retval None.
+  */
 void InitSetCanDriverVersionDID(uint16_t m_DID)
 {
 	InitAddDID(m_DID,3 , DriverVersion , REALTIME_DID , NULL , READONLY , 0 , FALSE);
 }
 
+/**
+  * @brief  配置网络管理版本DID的接口函数
+  * @param  DID 由于此数据在诊断模块，应用无法得到，所以使用此接口即可。此函数内部会添加DID。
+  * @retval None.
+  */
 void InitSetCanNMVersionDID(uint16_t m_DID)
 {
 	InitAddDID(m_DID,3 , NMVersion , REALTIME_DID , NULL , READONLY , 0 , FALSE);
 }
 
+/**
+  * @brief  配置CAN诊断版本DID的接口函数
+  * @param  DID 由于此数据在诊断模块，应用无法得到，所以使用此接口即可。此函数内部会添加DID。
+  * @retval None.
+  */
 void InitSetCanDiagnosticVersionDID(uint16_t m_DID)
 {
 	InitAddDID(m_DID,3 , DiagnosticVersion , REALTIME_DID , NULL , READONLY , 0 , FALSE);
 }
 
+/**
+  * @brief  配置CAN数据库DID的接口函数
+  * @param  DID
+  * @retval None.
+  */
 void InitSetCanDataBaseVersionDID(uint16_t m_DID)
 {
 	InitAddDID(m_DID,2 , DatabaseVersion , REALTIME_DID , NULL , READONLY , 0 , FALSE);
 }
 
+/**
+  * @brief  配置当前会话模式DID的接口函数
+  * @param  DID
+  * @retval None.
+  */
 void InitSetCurrentSessionDID(uint16_t m_DID)
 {
 	InitAddDID(m_DID,1 , &m_CurrSessionType , REALTIME_DID , NULL , READONLY , 0 , FALSE);
@@ -744,11 +920,27 @@ void InitSetCurrentSessionDID(uint16_t m_DID)
 
 
 /************set netwrok layer parameters********/
+
+/**
+  * @brief  设置网络层参数的接口函数
+  * @param  DID
+  * @param  TimeAs：网络层定时参数AS
+  * @param  TimeBs：网络层定时参数BS
+  * @param  TimeCr：网络层定时参数CR
+  * @param  TimeAr：网络层定时参数AR
+  * @param  TimeBr：网络层定时参数BR
+  * @param  TimeCs：网络层定时参数CS
+  * @param  BlockSize：网络层参数BloskSieze（BS）
+  * @param  STmin：网络层定时参数STmin
+  * @param  FillData：未使用字节的填充数据
+  * @retval None.
+  */
 void Diagnostic_SetNLParam(uint8_t TimeAs, uint8_t TimeBs, uint8_t TimeCr, uint8_t TimeAr, uint8_t TimeBr, uint8_t TimeCs, 
 	uint8_t BlockSize, uint8_t m_STmin, uint8_t FillData)
 {
 	NetworkLayer_SetParam(TimeAs , TimeBs , TimeCr , TimeAr , TimeBr , TimeCs , BlockSize , m_STmin , HALF_DUPLEX , DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , FillData);
 }
+
 /*�ڶ����id����*/
 void Diagnostic_Set2ndReqAndResID(uint32_t requestId1, uint32_t responseId1,uint32_t funRequestId1)
 {
@@ -758,6 +950,18 @@ void Diagnostic_Set2ndReqAndResID(uint32_t requestId1, uint32_t responseId1,uint
 	NetworkLayer_SetSecondID(requestId1 , funRequestId1 , responseId1);
 }
 
+/**
+  * @brief  诊断基本配置函数.
+  * @param  requestId: 诊断仪请求ID（物理寻址）
+  * @param  requestId: responseId：ECU响应ID（物理寻址）
+  * @param  funRequestId：功能寻址请求ID
+  * @param  EEPromStartAddr：诊断模块可使用的EEPROM起始
+  * @param  EEpromSize：诊断模块可使用的EEPROM的大小
+  * @param  sendFun：诊断模块发送CAN报文使用的函数指针
+  * @param  p2CanServerMax：诊断的响应时间参数限制（未发送78响应时）
+  * @param  p2ECanServerMax：诊断的响应时间参数限制（发送了78响应后）
+  * @retval None.
+  */
 void Diagnostic_Init(uint32_t requestId, uint32_t responseId, uint32_t funRequestId,uint16_t EEPromStartAddr, uint16_t EEpromSize, SendCANFun sendFun,uint16_t p2CanServerMax, uint16_t p2ECanServerMax)
 {
 	TesterPhyID = requestId;
@@ -3147,6 +3351,11 @@ void J1939Proc(void)
 }
 
 
+/**
+  * @brief  诊断处理过程的接口函数.此函数时最终实现诊断功能的函数，需要放到主循环不停的调用，如有需要，可以设置定时调用，最大定时为1MS。
+  * @param  None.
+  * @retval None.
+  */
 void Diagnostic_Proc(void)
 {
 	J1939Proc();
@@ -3156,6 +3365,15 @@ void Diagnostic_Proc(void)
 	Diagnostic_DTCProc();
 }
 
+/**
+  * @brief  诊断模块报文接收函数,此函数需要在接收中断中调用，如果不调用,诊断模块将无法收到任何报文，无法提供任何服务。
+  * @param  ID：报文ID，可以是11位和29位ID
+  * @param  Data：报文数据指针
+  * @param  IDE：参考S12G手册
+  * @param  DLC：报文长度
+  * @param  RTR：参考S12G手册
+  * @retval None.
+  */
 void Diagnostic_RxFrame(uint32_t ID,uint8_t* data,uint8_t IDE,uint8_t DLC,uint8_t RTR)
 {
 	NetworkLayer_RxFrame(ID,data,IDE,DLC,RTR);
@@ -3165,11 +3383,21 @@ void Diagnostic_RxFrame(uint32_t ID,uint8_t* data,uint8_t IDE,uint8_t DLC,uint8_
 	}
 }
 
+/**
+  * @brief  诊断模块时间基数函数,此函数需要在1毫秒的RTI中断中调用，如不调用，诊断模块所有与超时相关的功能将不能工作（包括多帧响应，S3超时等）。
+  * @param None
+  * @retval None.
+  */
 void Diagnostic_1msTimer(void)
 {
 	DiagTimer_ISR_Proc();
 }
 
+/**
+  * @brief  诊断模块释放接口,此接口会处理释放内存，保存故障码的操作，一定要在休眠之前调用。
+  * @param None
+  * @retval None.
+  */
 void Diagnostic_DelInit(void)
 {
 	//Diagnostic_SaveAllDTC();
@@ -3372,6 +3600,11 @@ void Diagnostic_BindingSnapshot(void)
 	}
 }
 
+/**
+  * @brief  加载所有诊断模块数据的接口函数.需要先 配置好DID，安全算法，DTC后才能调用此接口函数，此接口函数回从EEPROM中读取所有需要的数据。
+  * @param	None.
+  * @retval None.
+  */
 void Diagnostic_LoadAllData(void)
 {
 	Diagnostic_LoadAllDTC();
@@ -3385,6 +3618,13 @@ void Diagnostic_LoadAllData(void)
 ** ===================================================================
 */
 
+
+/**
+  * @brief  配置车架号的接口函数
+  * @param	length
+  * @param	data
+  * @retval None.
+  */
 void Diagnostic_ConfigVIN(uint8_t length, uint8_t* data)
 {
 	DIDNode* didNode = SearchDidNode(0xF190);
