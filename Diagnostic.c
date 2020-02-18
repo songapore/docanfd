@@ -81,9 +81,9 @@ typedef enum{
 typedef enum{
 	WAIT_SEED_REQ,
 	WAIT_KEY,
-	WAIT_DELAY,
+	WAIT_DELAY,//?
 	UNLOCKED,
-}SecurityUnlockStep;
+}SecurityUnlockStep;//安全解锁步骤：WAIT_SEED_REQ ->WAIT_KEY ->SecurityUnlockStep
 
 typedef enum{
 	REPORT_DTCNUMBER_BY_MASK = 1,
@@ -270,11 +270,11 @@ SecurityUnlock UnlockList[3];
 /*========================sesion , id , buf and so on================================*/
 static NegativeResposeCode m_NRC;					//����Ӧ��
 uint8_t m_CurrSessionType;							//��ǰ�ػ�����
-bool ResponsePending;									//�Ƿ��͹�78����Ӧ
+bool ResponsePending;									//78
 bool suppressResponse;
 uint16_t ResponseLength;
 uint8_t CurrentService;
-static uint8_t DiagnosticBuffTX[200];							//�������ݵĻ��� //各诊断服务处理后，将payload放在DiagnosticBuffT中
+static uint8_t DiagnosticBuffTX[200];			//各诊断服务处理后，将payload放在DiagnosticBuffT中
 static uint8_t J1939BufTX[90];
 static DiagTimer S3serverTimer;							 //S3��ʱ��
 static uint16_t P2CanServerMax = 0x32;						//�ػ�����
@@ -287,16 +287,17 @@ static uint32_t EcuID1;
 static uint32_t EcuID;
 static uint8_t N_Ta;// network target address
 static uint8_t N_Sa;// network source address
-static uint8_t SessionSupport;//bit0: default session 01 support
+static uint8_t SessionSupport; //其每一位代表对不同服务的支持情况
+							//bit0: default session 01 support
 						   //bit1: program session 02 support
 						   //bit2: extended session 03 support
 						   //bit3: sub02 supported in defaultsession
 						   //bit4: sub03 supported in program
 						   //bit5: supressPosRespnse support
-#define Service10Sub01Supported() ((SessionSupport & 0x01) != 0) //bit0
-#define Service10Sub02Supported() ((SessionSupport & 0x02) != 0)
-#define Service10Sub03Supported() ((SessionSupport & 0x04) != 0)
-#define Service10Sub01To02OK() ((SessionSupport & 0x08) != 0)//bit3 
+#define Service10Sub01Supported() ((SessionSupport & 0x01) != 0) //0001		bit0  
+#define Service10Sub02Supported() ((SessionSupport & 0x02) != 0)//0010 
+#define Service10Sub03Supported() ((SessionSupport & 0x04) != 0)//0100
+#define Service10Sub01To02OK() ((SessionSupport & 0x08) != 0)//1000		bit3 
 #define Service10Sub02To03OK() ((SessionSupport & 0x10) != 0)
 #define Service10SupressSupproted() ((SessionSupport & 0x20) != 0)
 /*========================sesion , id , buf and so on================================*/
@@ -923,7 +924,6 @@ void InitSetCurrentSessionDID(uint16_t m_DID)
 
 /**
   * @brief  设置网络层参数的接口函数
-  * @param  DID
   * @param  TimeAs：网络层定时参数AS
   * @param  TimeBs：网络层定时参数BS
   * @param  TimeCr：网络层定时参数CR
@@ -1009,7 +1009,12 @@ void Diagnostic_Init(uint32_t requestId, uint32_t responseId, uint32_t funReques
 }
 /*========interface for application layer setting diagnostic parameters==============*/
 
-
+/**
+  * @brief  根据系统时钟产生随机数
+  * @param  seed
+  * @param  length
+  * @retval None.
+  */
 void GenerateSeed(uint8_t *seed, uint32_t length)
 {
 	uint32_t SystemTick = DiagTimer_GetTickCount();
@@ -1025,7 +1030,12 @@ void GenerateSeed(uint8_t *seed, uint32_t length)
 	seed[3] = (uint8_t)(SystemTick>>3) ^ (uint8_t)(SystemTick >> 11);
 	#endif
 }
-/*�Ự��ת*/
+
+/**
+  * @brief  会话跳转函数
+  * @param  session
+  * @retval None.
+  */
 void GotoSession(SessionType session)
 {
 	if(session != ECU_DEFAULT_SESSION)
@@ -1033,25 +1043,25 @@ void GotoSession(SessionType session)
 		/***********goto nodefaultsession,reset s3 timer********/
 		DiagTimer_Set(&S3serverTimer, 5000);
 	}
-	else
+	else// 要跳转到default session 
 	{
 		/***********when s3 timeout,session change, comunication recover********/
-		if(commCallBack != NULL)
+		if(commCallBack != NULL)//跳转到默认会话的同时，需要恢复通信
 		{
 			commCallBack(0x00, 0x03);
 		}
 		
 		/***********when s3 timeout,session change, DTC enable***********/
-		EnableDTCDetect = TRUE;
+		EnableDTCDetect = TRUE; //跳转到默认会话的同时，也需要使能DTC检测
 	}
 	m_CurrSessionType = session;
 	m_SecurityLevel = LEVEL_ZERO;//session change ECU lock even if from extended session to extended session
 	if(m_UnlockStep != WAIT_DELAY)
 	{
-		m_UnlockStep = WAIT_SEED_REQ;//by ukign 2016.04.01 �ȴ���ʱ״̬�յ��Ự��ת�������ý�������״̬
+		m_UnlockStep = WAIT_SEED_REQ;//锁定ECU,将解锁流程重置为WAIT_SEED_REQ
 	}
 		/***********TODO:Add secrity brefore 10 02 ***********/
-	if(m_CurrSessionType == ECU_PAOGRAM_SESSION)
+	if(m_CurrSessionType == ECU_PAOGRAM_SESSION) //如果是跳转到编程会话，跳转前需要确认
 	{
 		WaitConfirmBeforeJump = TRUE;
 	}
@@ -1074,15 +1084,16 @@ void Service10Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 	uint8_t suppressPosRspMsgIndicationBit;
 	m_NRC = PR;
 	//printf("service 10 handler\r\n");
+	/*判断该请求的长度*/
 	if(length == 2)
-	{
-		if(Service10SupressSupproted())
-		{
-			SubFunction = *(MessageData + 1) & 0x7F;
-			suppressPosRspMsgIndicationBit = *(MessageData + 1) & 0x80;
+	{	
+		if(Service10SupressSupproted())	
+		{	//抑制积极应答，1000 XXXX & 0111 1111 = 0000 XXXX
+			SubFunction = *(MessageData + 1) & 0x7F;//将抑制位置0
+			suppressPosRspMsgIndicationBit = *(MessageData + 1) & 0x80;//取抑制位
 		}
 		else
-		{
+		{	//需要积极应答
 			SubFunction = *(MessageData + 1);
 			suppressPosRspMsgIndicationBit = 0;
 		}
@@ -1090,38 +1101,38 @@ void Service10Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 		switch(SubFunction)/* get sub-function parameter value without bit 7 */
 		{
 			case ECU_DEFAULT_SESSION: /* test if sub-function parameter value is supported */
-				if(!Service10Sub01Supported())
+				if(!Service10Sub01Supported())//诊断请求为01会话，但ECU不支持
 				{
-					m_NRC = SFNS;
+					m_NRC = SFNS;//子服务不支持
 				}
 				break;
 			case ECU_EXTENED_SESSION: /* test if sub-function parameter value is supported */
-				if(!Service10Sub03Supported())
+				if(!Service10Sub03Supported())//诊断请求为03会话，但ECU不支持
 				{
-					m_NRC = SFNS;
+					m_NRC = SFNS;//子服务不支持
 				}
-				else
+				else//请求03会，ECU也支持03会话
 				{
-					if(m_CurrSessionType == ECU_PAOGRAM_SESSION && !Service10Sub02To03OK())
+					if(m_CurrSessionType == ECU_PAOGRAM_SESSION && !Service10Sub02To03OK())//如果当前为02会话，但不支持02跳03会话
 					{
-						m_NRC = SFNSIAS;
+						m_NRC = SFNSIAS;//子函数在当前激活的会话中不支持
 					}
 				}
 				break;
 			case ECU_PAOGRAM_SESSION: /* test if sub-function parameter value is supported */
-				if(!Service10Sub02Supported())
+				if(!Service10Sub02Supported())//诊断请求为02会话，但ECU不支持
 				{
-					m_NRC = SFNS;
+					m_NRC = SFNS;//子服务不支持
 				}
-				else
+				else//请求02会，ECU也支持02会话
 				{
-					if(m_CurrSessionType == ECU_DEFAULT_SESSION && !Service10Sub01To02OK())
+					if(m_CurrSessionType == ECU_DEFAULT_SESSION && !Service10Sub01To02OK())//如果当前为01会话，但不支持01跳02会话
 					{
-						m_NRC = SFNSIAS;
+						m_NRC = SFNSIAS;//子函数在当前激活的会话中不支持
 					}
 				}
 				break;
-			case ECU_FACTORY_SESSION:
+			case ECU_FACTORY_SESSION://请求工厂会话模式
 				if(N_TAType == PHYSICAL)
 				{
 					if(m_CurrSessionType == ECU_EXTENED_SESSION)
@@ -1144,7 +1155,7 @@ void Service10Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 	}
 	else
 	{
-		m_NRC = IMLOIF;
+		m_NRC = IMLOIF;//长度不正确，格式非法
 	}
 	
 	if ( (suppressPosRspMsgIndicationBit) && (m_NRC == 0x00) && (ResponsePending == FALSE))
@@ -1157,7 +1168,7 @@ void Service10Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 		Service10PosResponse(SubFunction);
 	}
 
-	if(m_NRC == PR)
+	if(m_NRC == PR)//积极应答
 	{
 		GotoSession(SubFunction);
 	}
@@ -1170,14 +1181,14 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 	m_NRC = PR;
 	if(length == 2)
 	{
-		if(Service11SupressSupported())
+		if(Service11SupressSupported())//11服务支持 抑制积极应答
 		{
-			SubFunction = *(MessageData + 1) & 0x7F;
+			SubFunction = *(MessageData + 1) & 0x7F; //将抑制位置0
 			m_EcuResetType = SubFunction;
-			suppressPosRspMsgIndicationBit = *(MessageData + 1) & 0x80;
+			suppressPosRspMsgIndicationBit = *(MessageData + 1) & 0x80;//取抑制位
 		}
 		else
-		{
+		{	//需要积极应答
 			SubFunction = *(MessageData + 1);
 			m_EcuResetType = SubFunction;
 			suppressPosRspMsgIndicationBit = 0;
@@ -1189,7 +1200,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 				{
 					if(!Service11Sub01Supported())
 					{
-						m_NRC = SFNS;
+						m_NRC = SFNS;/* NRC 0x12: sub-functionNotSupported */
 					}
 				}
 				break;
@@ -1197,7 +1208,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 				{
 					if(!Service11Sub02Supported())
 					{
-						m_NRC = SFNS;
+						m_NRC = SFNS;/* NRC 0x12: sub-functionNotSupported */
 					}
 				}
 				break;
@@ -1205,7 +1216,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 				{
 					if(!Service11Sub03Supported())
 					{
-						m_NRC = SFNS;
+						m_NRC = SFNS;/* NRC 0x12: sub-functionNotSupported */
 					}
 				}
 				break;
@@ -1213,7 +1224,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 				{
 					if(!Service11Sub04Supported())
 					{
-						m_NRC = SFNS;
+						m_NRC = SFNS;/* NRC 0x12: sub-functionNotSupported */
 					}
 				}
 				break;
@@ -1221,7 +1232,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 				{
 					if(!Service11Sub05Supported())
 					{
-						m_NRC = SFNS;
+						m_NRC = SFNS;/* NRC 0x12: sub-functionNotSupported */
 					}
 				}
 				break;
@@ -1231,7 +1242,7 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 	}
 	else
 	{
-		m_NRC = IMLOIF;
+		m_NRC = IMLOIF;/*incorect message length or invalid format*/
 	}
 	
 	if ( (suppressPosRspMsgIndicationBit) && (m_NRC == 0x00) && (ResponsePending == FALSE))
@@ -1246,13 +1257,13 @@ void Service11Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 		ResponseLength = 2;
 	}
 
-	if(m_NRC == PR)
+	if(m_NRC == PR) /*positive response*/
 	{
-		if(suppressResponse == FALSE)//��Ҫ����Ӧʱ���ȼ���Ӧ����
+		if(suppressResponse == FALSE)
 		{
 			WaitConfimBeforeReset = TRUE;
 		}
-		else//����Ҫ����Ӧʱֱ�Ӹ�λ
+		else
 		{
 			if(ResetCallBackFun != NULL)
 			{
@@ -1272,9 +1283,9 @@ void Service27Handle(uint8_t N_TAType, uint16_t length, uint8_t *MessageData)
 		uint8_t index = 0;
 		bool subFunctionExist = FALSE;
 		bool subFunctionSupInSession = FALSE;
-		SubFunction = *(MessageData + 1) & 0x7F;
+		SubFunction = *(MessageData + 1) & 0x7F;/*suppress bit sets to zeros */
 		suppressPosRspMsgIndicationBit = *(MessageData + 1) & 0x80;
-		while(index < 3 && (!subFunctionExist))
+		while(index < 3 && (!subFunctionExist))/*max 3 times*/
 		{
 			if(UnlockList[index].valid == TRUE && (UnlockList[index].seedID == SubFunction || UnlockList[index].keyID == SubFunction))
 			{
@@ -2786,24 +2797,40 @@ void Diagnostic_ReadDTCPositiveResponse(uint8_t DTCSubFunction,uint8_t DTCStatau
 }
 #endif
 
+/**
+  * @brief  消极应答函数
+  * @param	serviceName
+  * @param	RejectCode
+  * @retval None.
+  */
 void ServiceNegReponse(uint8_t serviceName,uint8_t RejectCode)
 {
 	DiagnosticBuffTX[0] = 0x7F;
 	DiagnosticBuffTX[1] = serviceName;
 	DiagnosticBuffTX[2] = RejectCode;
-	N_USData_request(DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , DiagnosticBuffTX , 3);
+	N_USData_request(DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , DiagnosticBuffTX , 3);//
 }
 
+/**
+  * @brief 对收到的诊断请求进行处理。会判断寻址方式、会话模式、安全访问等级。
+  * @param	N_SA
+  * @param	N_TA
+  * @param	N_TAtype
+  * @param	length
+  * @param	MessageData：不包含PCI信息。
+  * @retval None.
+  */
 void Diagnostic_ServiceHandle(uint8_t N_SA , uint8_t N_TA , uint8_t N_TAtype , uint16_t length , uint8_t *MessageData)
+
 {
 	uint8_t  SIDIndex;
 	bool ValidSid;
 	uint16_t ServiceIndex;
 	uint8_t DataIndex;
-	ValidSid = FALSE;
+	ValidSid = FALSE;//标志位，当其为TRUE则代表找到匹配的服务
 	ServiceIndex = 0;
 	CurrentService = MessageData[0];	
-	#if 0
+	#if 0   
 	printf("rx[");
 	for(DataIndex = 0; DataIndex < length; DataIndex++)
 	{
@@ -2811,11 +2838,11 @@ void Diagnostic_ServiceHandle(uint8_t N_SA , uint8_t N_TA , uint8_t N_TAtype , u
 	}
 	printf("]\r\n");
 	#endif
-	while((ServiceIndex < SERVICE_NUMBER) && (!ValidSid))
+	while((ServiceIndex < SERVICE_NUMBER) && (!ValidSid))//遍历ServiceList[]，找到匹配的ServiceIndex
 	{
 		if(ServiceList[ServiceIndex].serviceName == CurrentService)
 		{
-			if(ServiceList[ServiceIndex].support == TRUE)
+			if(ServiceList[ServiceIndex].support == TRUE) 
 			{
 				ValidSid = TRUE;
 			}
@@ -2831,150 +2858,150 @@ void Diagnostic_ServiceHandle(uint8_t N_SA , uint8_t N_TA , uint8_t N_TAtype , u
 		}
 	}
 	
-	if(ValidSid == TRUE)
-	{
-		if(N_TAtype == PHYSICAL)
+	if(ValidSid == TRUE)//找到匹配的service
+	{	
+		if(N_TAtype == PHYSICAL)//物理寻址的请求
 		{
 			suppressResponse = FALSE;
-			if(ECU_DEFAULT_SESSION == m_CurrSessionType)
+			if(ECU_DEFAULT_SESSION == m_CurrSessionType)//当前为10 01会话
 			{
-				if(ServiceList[ServiceIndex].PHYDefaultSession_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].PHYDefaultSession_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持物理、默认会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].PHYDefaultSession_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 						//LastService = ServiceList[ServiceIndex];
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_EXTENED_SESSION == m_CurrSessionType)
+			else if(ECU_EXTENED_SESSION == m_CurrSessionType)//当前为10 03会话
 			{
-				if(ServiceList[ServiceIndex].PHYExtendedSession_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].PHYExtendedSession_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持物理、10 03会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].PHYExtendedSession_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 						//LastService = ServiceList[ServiceIndex];
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_PAOGRAM_SESSION == m_CurrSessionType)
+			else if(ECU_PAOGRAM_SESSION == m_CurrSessionType)//当前为10 02会话
 			{
-				if(ServiceList[ServiceIndex].PHYProgramSeesion_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].PHYProgramSeesion_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持物理、10 03会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].PHYProgramSeesion_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_FACTORY_SESSION == m_CurrSessionType)
+			else if(ECU_FACTORY_SESSION == m_CurrSessionType)//当前为工厂模式会话
 			{
 				if(ServiceList[ServiceIndex].serviceName== SESSION_CONTROL
 					|| ServiceList[ServiceIndex].serviceName== SECURITY_ACCESS
 					|| ServiceList[ServiceIndex].serviceName== READ_DATA_BY_ID
 					|| ServiceList[ServiceIndex].serviceName== WRITE_DATA_BY_ID
-					|| ServiceList[ServiceIndex].serviceName== RESET_ECU)
+					|| ServiceList[ServiceIndex].serviceName== RESET_ECU) //工厂模式支持的服务10，27，22，2E,11
 				{
 					ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
 				}
 				else
 				{
-					m_NRC = SNSIAS;
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SAD);当前激活的会话不支持该服务
 				}
 			}
 		}
-		else if(N_TAtype == FUNCTIONAL)
+		else if(N_TAtype == FUNCTIONAL)//功能寻址的请求
 		{
-			if(ECU_DEFAULT_SESSION == m_CurrSessionType)
+			if(ECU_DEFAULT_SESSION == m_CurrSessionType)//当前为10 01会话
 			{
-				if(ServiceList[ServiceIndex].FUNDefaultSession_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].FUNDefaultSession_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持功能寻址、默认会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].FUNDefaultSession_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 						//LastService = ServiceList[ServiceIndex];
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_EXTENED_SESSION == m_CurrSessionType)
+			else if(ECU_EXTENED_SESSION == m_CurrSessionType)//当前为10 03会话
 			{
-				if(ServiceList[ServiceIndex].FUNExtendedSession_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].FUNExtendedSession_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持功能寻址、扩展会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].FUNExtendedSession_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 						//LastService = ServiceList[ServiceIndex];
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_PAOGRAM_SESSION == m_CurrSessionType)
+			else if(ECU_PAOGRAM_SESSION == m_CurrSessionType)//当前为10 02会话
 			{
-				if(ServiceList[ServiceIndex].FUNProgramSeesion_Security == LEVEL_UNSUPPORT)
+				if(ServiceList[ServiceIndex].FUNProgramSeesion_Security == LEVEL_UNSUPPORT)//判断请求的服务，是否支持支持功能寻址、扩展会话
 				{
-					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);
+					m_NRC = SNSIAS;//ServiceNegReponse(ServiceName,SNSIAS);当前激活的会话不支持该服务
 				}
 				else
-				{
+				{	//支持当前会话前提下，还需要判断安全访问等级是否正确
 					if((ServiceList[ServiceIndex].FUNProgramSeesion_Security & m_SecurityLevel) == m_SecurityLevel)
-					{
-						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);
+					{	//安全访问等级正确
+						ServiceList[ServiceIndex].serviceHandle(N_TAtype,length,MessageData);//判断会话及安全访问等级匹配后，再调用服务处理函数句柄。
 						//LastService = ServiceList[ServiceIndex];
 					}
 					else
 					{
-						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);
+						m_NRC = SAD;//ServiceNegReponse(ServiceName,SAD);安全访问等级不匹配，消极应答：0x33
 					}
 				}
 			}
-			else if(ECU_FACTORY_SESSION == m_CurrSessionType)
+			else if(ECU_FACTORY_SESSION == m_CurrSessionType)//当前为工厂模式
 			{
-				m_NRC = SNS;
+				m_NRC = SNS;//ServiceNegReponse(ServiceName,SAD);服务不支持。
 			}
 		}
 	}
 	else
-	{
+	{	//ValidSid == FALSE,未找到匹配的service，即当前服务不支持
 		if(N_TAtype == PHYSICAL)//����Ѱַ��ЧSED����Ӧ
 		{
 			m_NRC = SNS;//ServiceNegReponse(ServiceName,SNS);
@@ -2987,27 +3014,32 @@ void Diagnostic_ServiceHandle(uint8_t N_SA , uint8_t N_TA , uint8_t N_TAtype , u
 	}
 }
 
-
+/**
+  * @brief 诊断最主要的处理函数
+  * @param None
+  * @retval None.
+  */
 void Diagnostic_MainProc(void)
 {
 	uint32_t rxId = 0;
 	bool ExistValidNotify = FALSE;
 	if(!IsIndicationListEmpty())
-	{
+	{	//indicationlist非空，有诊断报文待处理
 		NetworkNotification temp = PullIndication();
-		rxId = ((temp.N_SA << 8) + temp.N_TA); // CAN报文只用到TA了，以太网等场景会用到
+		rxId = ((temp.N_SA << 8) + temp.N_TA); // CAN总线只用到N_TA
 		
-		if(temp.NotificationType == INDICATION) //当收到单帧或者segment messages传输完成时，网络层发送indication
+		if(temp.NotificationType == INDICATION) //当收到单帧 或者segment messages接收完成时，网络层发送indication类型通知到IndicationList[]
 		{
 			uint8_t RequestEquipment = 0xFF;
 			if((rxId & 0xFFFF) == (TesterPhyID & 0xFFFF) || (rxId & 0xFFFF) == (TesterFunID & 0xFFFF))
 			{
+				//ID为TesterPhyID || TesterFunID
 				RequestEquipment = 0;
 				N_Ta = (uint8_t)EcuID;
 				N_Sa = (uint8_t)(EcuID >> 8);
 			}
 			else if((rxId & 0xFFFF) == (TesterPhyID1 & 0xFFFF) || (rxId & 0xFFFF) == (TesterFunID1 & 0xFFFF))
-			{
+			{	//ID为TesterPhyID1 || TesterFunID1
 				RequestEquipment = 1;
 				N_Ta = (uint8_t)EcuID1;
 				N_Sa = (uint8_t)(EcuID1 >> 8);
@@ -3015,54 +3047,54 @@ void Diagnostic_MainProc(void)
 		
 			if(RequestEquipment == 0 || RequestEquipment == 1)
 			{
-				if(temp.N_Resut == N_OK ||temp.N_Resut == N_UNEXP_PDU)
+				if(temp.N_Resut == N_OK ||temp.N_Resut == N_UNEXP_PDU) //接收正常，或收到异常PDU请求时
 				{
-					Diagnostic_ServiceHandle(temp.N_SA,temp.N_TA,temp.N_TAtype,temp.length, temp.MessageData);
-
+					Diagnostic_ServiceHandle(temp.N_SA,temp.N_TA,temp.N_TAtype,temp.length, temp.MessageData); //用DiagnosticBuffTX , ResponseLength；CurrentService，m_NRC、suppressResponse等全局变量值 返回处理结果。
+														//各诊断服务处理后，将payload放在DiagnosticBuffT中
 					#if 0
 					if((temp.N_TAtype == FUNCTIONAL) && ((m_NRC == SNS) || (m_NRC == SFNS) || (m_NRC == SNSIAS) ||
 					(m_NRC == SFNSIAS) || (m_NRC == ROOR)) && (ResponsePending == FALSE))
 					#else
 					if((temp.N_TAtype == FUNCTIONAL) && ((m_NRC == SNS) || (m_NRC == SFNS) || (m_NRC == SFNSIAS) || (m_NRC == ROOR)) && (ResponsePending == FALSE))
 					#endif
-					{	/*  negative response  */
+					{	/*  FUNCTIONAL && negative response && ResponsePending == FALSE ,功能寻址的消极应答 */
 						//printf("res supress,pending =  %d\r\n",ResponsePending);
 						
 					}
 					else if (suppressResponse == TRUE)
-					{	/* suppress positive response message */
+					{	
 						//printf("res supress bit is TRUE\r\n");
 						
 					}
 					else
-					{
+					{	//需要应答情况
 						if(m_NRC == PR)
 						{	//positve response
 							N_USData_request(DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , DiagnosticBuffTX , ResponseLength);
 						}
 						else
-						{
+						{	//negtive response
 							ServiceNegReponse(CurrentService,m_NRC);
 						}
 					}
 
 					
-					if(m_CurrSessionType  != ECU_DEFAULT_SESSION)
+					if(m_CurrSessionType  != ECU_DEFAULT_SESSION) //收到诊断请求后，重置S3定时器，保持非默认会话
 					{
 						DiagTimer_Set(&S3serverTimer, 5000);
 					}
 				}
 			}
 		}
-		else if(temp.NotificationType == CONFIRM)
-		{
+		else if(temp.NotificationType == CONFIRM)//The service primitive confirms the completion of an N_USData.request service
+		{	//confirm通知类型：用于告知应用层诊断请求发送完成情况
 			if((rxId & 0xFFFF) == (EcuID & 0xFFFF))
-			{
+			{	//rxId == EcuID
 				if(WaitConfirmBeforeJump == TRUE)
 				{
 					
 				}
-				else if(WaitConfirmBeforeErase == TRUE)
+				else if(WaitConfirmBeforeErase == TRUE) //31
 				{
 					WaitConfirmBeforeErase = FALSE;
 					#ifdef BOOTLOADER
@@ -3076,12 +3108,12 @@ void Diagnostic_MainProc(void)
 					N_USData_request(DIAGNOSTIC , N_Sa ,  N_Ta , PHYSICAL , 0 , DiagnosticBuffTX , 5);
 					#endif
 				}
-				else if(WaitConfimBeforeReset == TRUE)
+				else if(WaitConfimBeforeReset == TRUE) //11
 				{
 					WaitConfimBeforeReset = FALSE;
 					if(ResetCallBackFun != NULL)
 					{
-						ResetCallBackFun(m_EcuResetType);
+						ResetCallBackFun(m_EcuResetType);//复位回调函数
 					}
 				}
 			}
@@ -3093,7 +3125,7 @@ void Diagnostic_MainProc(void)
 	}
 	#if 1
 	else
-	{
+	{	//indicationlist为空，没有诊断报文处理
 		if(SaveDTCInBlock != FALSE)
 		{
 			if(DiagTimer_HasExpired(&DTCSavedTimer))
@@ -3585,7 +3617,7 @@ void Diagnostic_DTCDefaultValue(void)
 	#endif
 }
 
-void Diagnostic_BindingSnapshot(void)
+void Diagnostic_BindingSnapshot(void) 
 {
 	uint8_t i,j;
 	uint16_t SnapshotDataLength = 0;
@@ -3601,7 +3633,7 @@ void Diagnostic_BindingSnapshot(void)
 }
 
 /**
-  * @brief  加载所有诊断模块数据的接口函数.需要先 配置好DID，安全算法，DTC后才能调用此接口函数，此接口函数回从EEPROM中读取所有需要的数据。
+  * @brief  加载所有诊断模块数据的接口函数.需要先配置好DID，安全算法，DTC后才能调用此接口函数，此接口函数回从EEPROM中读取所有需要的数据。
   * @param	None.
   * @retval None.
   */
