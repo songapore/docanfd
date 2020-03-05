@@ -29,7 +29,7 @@ typedef enum{
 	PASSED,//测试通过
 	IN_TESTING,//测试未完成
 	FAILED,//测试失败
-}DTCTestResult;//诊断故障状态定义
+}DTCTestResult;//故障采样检测结果定义
 
 typedef enum{
 	EEPROM_DID, //静态存储器DID，存储在EEPROM中的DID使用此类型

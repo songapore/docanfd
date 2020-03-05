@@ -651,9 +651,9 @@ bool InitAddDTC(uint32_t DTCCode,DetectFun MonitorFun,byte DectecPeroid, byte Va
 	#else
 	if(DTCAdded < MAX_DTC_NUMBER)
 	{
-		DTCS[DTCAdded].DTCCode = DTCCode;
-		DTCS[DTCAdded].DetectFunction = MonitorFun;
-		DTCS[DTCAdded].TripLimitTimes = ValidTimes;
+		DTCS[DTCAdded].DTCCode = DTCCode;//DTC值
+		DTCS[DTCAdded].DetectFunction = MonitorFun;//DTC检测接口函数,返回testResult  = 	PASSED,IN_TESTING,FAILED
+		DTCS[DTCAdded].TripLimitTimes = ValidTimes;//错误有效次数
 		#if USE_J1939_DTC
 		DTCS[DTCAdded].dtcLevel = dtcLevel;
 		DTCS[DTCAdded].DM1Code.SPN = spn;
@@ -2014,8 +2014,8 @@ void SearchDTCByMaskAndFillResponse(uint8_t mask)
 	uint8_t i;
 	for(i = 0 ; i < DTCAdded;i++)
 	{
-		if((DTCS[i].DTCStatus.DTCStatusByte & mask & DtcAvailibaleMask) != 0)
-		{
+		if((DTCS[i].DTCStatus.DTCStatusByte & mask & DtcAvailibaleMask) != 0)//DTC掩码匹配，
+		{	//将匹配的DTC存入DiagnosticBuffTX[]
 			DiagnosticBuffTX[ResponseLength++] =  (uint8_t)(DTCS[i].DTCCode >> 16);
 			DiagnosticBuffTX[ResponseLength++] =  (uint8_t)(DTCS[i].DTCCode >> 8);
 			DiagnosticBuffTX[ResponseLength++] =  (uint8_t)(DTCS[i].DTCCode);
@@ -3239,7 +3239,7 @@ void SaveSnapShotData(uint16_t EEPromAddr)
 	uint8_t i;
 	for(i = 0 ; i < SnapShotAdded; i++)
 	{
-		memcpy(DiagnosticBuffTX + length,SnapShots[i].dataPointer,SnapShots[i].dataLength);
+		memcpy(DiagnosticBuffTX + length,SnapShots[i].dataPointer,SnapShots[i].dataLength);//快照与诊断发送公用buffer？会冲突
 		length += SnapShots[i].dataLength;
 	}
 
@@ -3260,19 +3260,19 @@ void DtcHandle(DTCNode* DtcNode)
 		CurrentResult = PASSED;
 	}
 	
-	if(CurrentResult == PASSED)
+	if(CurrentResult == PASSED)//测试结果为通过
 	{
-		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle == 1)
+		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle == 1) //bit 6
 		{
 			DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle = 0;//14229-1-Figure D.9-2
-			OperateCycleChange = TRUE;
+			OperateCycleChange = TRUE;//操作周期改变条件不正确
 		}
 
-		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear == 1)
+		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear == 1)//bit 4
 		{
 			DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear = 0;//14229-1-Figure D.9-1
 		}
-		if(DtcNode->DTCStatus.DTCbit.TestFailed == 1)
+		if(DtcNode->DTCStatus.DTCbit.TestFailed == 1) //bit0
 		{
 			DtcNode->DTCStatus.DTCbit.TestFailed = 0;//14229-1-Figure D.9-7
 		}
@@ -3285,23 +3285,23 @@ void DtcHandle(DTCNode* DtcNode)
 	}
 	else if(CurrentResult == FAILED)
 	{
-		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle == 1)
+		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle == 1)//bit6
 		{
 			DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle = 0;//14229-1-Figure D.9-2
 			OperateCycleChange = TRUE;
 		}
 
-		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear == 1)
+		if(DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear == 1)//bit5
 		{
 			DtcNode->DTCStatus.DTCbit.TestNotCompleteSinceLastClear = 0;//14229-1-Figure D.9-1
 		}
-		if(DtcNode->DTCStatus.DTCbit.TestFailed == 0)
+		if(DtcNode->DTCStatus.DTCbit.TestFailed == 0) //bit 0
 		{
 			DtcNode->DTCStatus.DTCbit.TestFailed = 1;//14229-1-Figure D.9-3,8
 		}
-		if(DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle ==0 )
+		if(DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle ==0 ) //bit 1
 		{
-			DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//���β���ѭ������ʧ��14229-1-Figure D.9-4
+			DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle = 1;//14229-1-Figure D.9-4
 			DtcNode->TripCounter++;
 			//DtcNode->DTCStatus.DTCbit.ConfirmedDTC = 1;
 			//SaveSnapShotData(DtcNode->SnapShotEEpromAddr);
@@ -3312,7 +3312,7 @@ void DtcHandle(DTCNode* DtcNode)
 				{
 					DtcNode->TripCounter = 0;
 					DtcNode->DTCStatus.DTCbit.ConfirmedDTC = 1;
-					SaveSnapShotData(DtcNode->SnapShotEEpromAddr);
+					SaveSnapShotData(DtcNode->SnapShotEEpromAddr);//保存快照
 				}
 			}
 			if(DtcNode->FaultOccurrences < 0xff)
@@ -3321,8 +3321,9 @@ void DtcHandle(DTCNode* DtcNode)
 			}
 			#endif
 		}
-		DtcNode->DTCStatus.DTCbit.PendingDTC = 1;//δȷ�ϵ���Ϲ����룬14229-1-Figure D.9-5
-		DtcNode->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//���ϴ���������ʧ��14229-1-Figure D.9-6	
+		
+		DtcNode->DTCStatus.DTCbit.PendingDTC = 1;//14229-1-Figure D.9-5
+		DtcNode->DTCStatus.DTCbit.TestFailedSinceLastClear = 1;//14229-1-Figure D.9-6	
 		DtcNode->OldCounter == 0;
 
 		#if USE_J1939_DTC
@@ -3341,8 +3342,8 @@ void DtcHandle(DTCNode* DtcNode)
 	}
 
 	if(DtcNode->DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0 && DtcNode->DTCStatus.DTCbit.TestNotCompleteThisMonitoringCycle == 0)//iso14229-1 Frigure D.4
-	{
-		DtcNode->TripCounter == 0;
+	{ 
+		DtcNode->TripCounter = 0;
 	}
 }
 
@@ -3367,7 +3368,7 @@ void Diagnostic_DTCProc(void)
 				DtcHandle(DTCS + i);
 			}
 			#endif
-			DiagTimer_Set(&DtcTimer , 50);
+			DiagTimer_Set(&DtcTimer , 50);//检测周期，50ms
 		}
 	}
 }
@@ -3516,16 +3517,15 @@ void Diagnostic_SaveAllDTC(void)
 	uint16_t DtcStartAddr = DTCS[0].EEpromAddr;
 	uint16_t DtcBytesToSave = 0;
 	uint8_t  DtcBytes[180];
-	for(i = 0 ; i < DTCAdded ; i++)
-	{
+ 	{
 		if(DTCS[i].DTCStatus.DTCbit.TestNotCompleteSinceLastClear == 0 && DTCS[i].DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0)
 		{
-			DTCS[i].DTCStatus.DTCbit.PendingDTC = 0;
+			DTCS[i].DTCStatus.DTCbit.PendingDTC = 0;//FIG D.3
 		}
 	
 		if(DTCS[i].DTCStatus.DTCbit.TestFailedThisMonitoringCycle == 0  && DTCS[i].DTCStatus.DTCbit.ConfirmedDTC == 1)
 		{
-			if(DTCS[i].OldCounter >= 40)//�������ϻ�����
+			if(DTCS[i].OldCounter >= 40)//老化计数器最大为40
 			{
 				DTCS[i].OldCounter = 0;
 				DTCS[i].GoneCounter++;
